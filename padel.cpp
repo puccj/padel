@@ -3,6 +3,8 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/video.hpp>
 
+#include <fstream>
+
 Padel::Padel(std::string filePath) 
   : _data {new Positions[_totalFrame]}, 
     _cap{cv::VideoCapture(filePath)},
@@ -12,6 +14,9 @@ Padel::Padel(std::string filePath)
     std::cerr << "Error: could not open " << filePath << '\n';
     return;
   }
+
+  //To do: Load parameters from file if exists, calculate them otherwise
+
   calculateFPS(true);
 }
 
@@ -31,7 +36,7 @@ void Padel::showTrackbars() {
   cv::namedWindow(winName, cv::WINDOW_NORMAL);
   cv::createTrackbar("Threshold", winName, &thresholdValue, 100);
   cv::createTrackbar("Dilation (detection)",winName, &dilationValue, 20);
-  cv::createTrackbar("Min Area", winName, &minAreaValue, 1000);
+  cv::createTrackbar("Min Area", winName, &minAreaValue, 400);
 }
 
 void Padel::showBackground(int delay, std::string winName) {
@@ -92,6 +97,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     delay = 1000/_fps;
   
   cv::Mat frame, fgMask, bg;
+  std::fstream fout(outputFile, std::ios::out);
 
   if (_background.empty()) {
     std::cout << "Debug: without BG\n";
@@ -104,6 +110,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       pBackSub = cv::createBackgroundSubtractorMOG2();
     else {
       std::cerr << "ERROR: process was called without a BG and an unknown mode for calculation has been given\n";
+      fout.close();
       return false;
     }
   
@@ -111,7 +118,8 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       _cap >> frame;;
       if (frame.empty()) {
         std::cout << "End of video\n";
-        return false;
+        fout.close();
+        return true;
       }
   
       //Foreground detection and update the background model
@@ -138,9 +146,10 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
         //if (drawRects)
         cv::rectangle(frame, r, {0,255,0}, 2);
 
-        //Find position of feet
+        //Find position of feet and save on file
         cv::Point feet = {r.x + r.width/2, r.y + r.height};
         cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
+        fout << feet << ' ';
       }
 
       if (delay > 0) { //Only show progress if delay >= 0
@@ -150,11 +159,14 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
         // imshow("BG", bg);
 
         int k = cv::waitKey();
-        if (k == 'q' || k == 27)
-          break;
-        // if (k == 's')
-        //   cv::imwrite("bg.png", bg);
+        if (k == 'q' || k == 27) {
+          fout.close();
+          return true;
+        }
       }
+
+      //New frame -> new line on file
+      fout << '\n';
     }
   }
   else { //BG not empty 
@@ -167,7 +179,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       _cap.read(frame);
       if (frame.empty()) {
         std::cout << "End of video\n";
-        return false;
+        return true;
       }
 
       cv::Mat fgMask(frame.size(), CV_32FC1);  //gray frame
@@ -195,9 +207,10 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
         //if (drawRects)
         cv::rectangle(frame, r, {0,255,0}, 2);
 
-        //Find position of feet
+        //Find position of feet and save on file
         cv::Point feet = {r.x + r.width/2, r.y + r.height};
         cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
+        fout << feet << ' ';
       }
 
       if (delay > 0) { //Only show progress if delay >= 0
@@ -207,14 +220,18 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
         // imshow("BG", bg);
 
         int k = cv::waitKey();
-        if (k == 'q' || k == 27)
-          break;
-        // if (k == 's')
-        //   cv::imwrite("bg.png", bg);
+        if (k == 'q' || k == 27) {
+          fout.close();
+          return true;
+        }
       }
+      
+      //New frame -> new line on file
+      fout << '\n';
     }
   } //end else
   
+  fout.close();
   return true;
 }
 

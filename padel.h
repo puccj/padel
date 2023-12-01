@@ -9,7 +9,7 @@ class Padel
   //parameters:
   int thresholdValue = 46;
   int dilationValue = 6;
-  int minAreaValue = 500;
+  int minAreaValue = 50;
   int consecutiveValue = 1;
   double learningRateValue = -1;
   
@@ -39,8 +39,9 @@ class Padel
   //(0(default) = entire video lenght for a file, 5 seconds for a camera)
   void calculateBackground(double seconds = 0, double weight = 0.005);
 
-  //load an image to be uses as background
-  //returns false if errors occur
+  /// @brief Load an image to be uses as background
+  /// @param filename Filepath of the input image
+  /// @return false if an error occurs
   bool loadBackground(std::string filename);
 
   /// @brief Produces data of positions for the current frame and optionally show video with box around each person
@@ -48,7 +49,8 @@ class Padel
   /// @param delay Delay between each shown frame. If 0 (default), the video is shown with original fps. If negative the video is not shown at all
   /// @param mode Mode use to get the foreground Mask. Only used if background is not pre-set
   /// @param removeShadows Whether to consider shadows to create the box. Only used if background is not pre-set
-  bool process(std::string outputFile = "None", int delay = 0, bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
+  /// @return false if an error occurs
+  bool process(std::string outputFile = "output.dat", int delay = 0, bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
 
   //save data in a file
   void saveData(std::string outputFile = "output.dat");
