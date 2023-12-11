@@ -6,6 +6,9 @@
 
 class Padel
 {
+  static cv::Point2f mousePosition;
+  static void onMouse(int event, int x, int y, int flag, void* param);
+
   //parameters:
   int thresholdValue = 46;
   int dilationValue = 6;
@@ -13,16 +16,11 @@ class Padel
   int consecutiveValue = 1;
   double learningRateValue = -1;
   
-
   enum class bgSubMode{KNN, MOG2};
-  struct Positions {
-    //store the position of the players
-    cv::Point2d pos[4];
-  };
 
   cv::VideoCapture _cap;
-  int _totalFrame;  //total number of frames in the video, 0 if a camera is opened (real time exec)
-  Positions* _data;
+  bool _fileOpened;
+  cv::Mat _perspMat; //perspective matrix
   double _fps;
   cv::Mat _background;
 
@@ -59,6 +57,7 @@ class Padel
   void createHeatmap();
 
  private:
+  bool calculatePerspMat(std::string filename);
   void calculateFPS(bool file);
 
 };

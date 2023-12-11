@@ -5,24 +5,44 @@
 
 #include <fstream>
 
-Padel::Padel(std::string filePath) 
-  : _data {new Positions[_totalFrame]}, 
-    _cap{cv::VideoCapture(filePath)},
-    _totalFrame{(int) _cap.get(cv::CAP_PROP_FRAME_COUNT)}
+cv::Point2f Padel::mousePosition = {-1,-1};
+
+void Padel::onMouse(int event, int x, int y, int flag, void *param) {
+  if (event == cv::EVENT_LBUTTONDOWN) {
+    mousePosition.x = x;
+    mousePosition.y = y;
+  }
+  else if (event == cv::EVENT_RBUTTONDOWN) {
+    mousePosition.x = -2;
+  }
+}
+
+Padel::Padel(std::string filePath)
+    : _cap{cv::VideoCapture(filePath)},
+      _fileOpened(true)
 {
   if (!_cap.isOpened()) {
     std::cerr << "Error: could not open " << filePath << '\n';
     return;
   }
 
-  //To do: Load parameters from file if exists, calculate them otherwise
+  //Load parameters from file if exists, calculate them otherwise
+  std::string paramFile = filePath + "-param.dat";
+  std::fstream fin(paramFile, std::ios::in);
+  if (fin.is_open()) {
+    //TO DO: read from file
+  }
+  else {
+    std::cout << "Debug: Paramfile not present, recalculating\n";
+    calculatePerspMat(paramFile);
+  }
 
   calculateFPS(true);
 }
 
 Padel::Padel(int camIndex)
   : _cap{cv::VideoCapture(camIndex)},
-    _totalFrame{0}
+    _fileOpened{false}
 {
   if (!_cap.isOpened()) {
     std::cerr << "Error while opening camera " << camIndex << '\n';
@@ -51,7 +71,7 @@ void Padel::calculateBackground(double seconds, double weight) {
   
   int frames = seconds * _fps;
 
-  if (seconds == 0 && _totalFrame == 0) //if a camera is opened
+  if (seconds == 0 && !_fileOpened) //if a camera is opened
     frames = 5 * _fps;   //5 second as default
 
   cv::Mat firstFrame;
@@ -74,7 +94,7 @@ void Padel::calculateBackground(double seconds, double weight) {
   }
 
   //if cap is a file, set to the beggining of the video
-  if (_totalFrame != 0)
+  if (_fileOpened)
     _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 
   std::cout << "     Done\n";
@@ -93,8 +113,12 @@ bool Padel::loadBackground(std::string filename) {
 }
 
 bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool removeShadows) {
-  if (delay == 0)
-    delay = 1000/_fps;
+  if (delay == 0) {
+    if (_fileOpened)
+      delay = 1000/_fps;
+    else
+      delay = 18;   //higher number means less lag, but less percieved fluidity
+  }
   
   cv::Mat frame, fgMask, bg;
   std::fstream fout(outputFile, std::ios::out);
@@ -158,7 +182,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
         imshow("FG Mask", fgMask);
         // imshow("BG", bg);
 
-        int k = cv::waitKey();
+        int k = cv::waitKey(delay);
         if (k == 'q' || k == 27) {
           fout.close();
           return true;
@@ -238,14 +262,145 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
 
 // -- Private methods -- //
 
+bool Padel::calculatePerspMat(std::string filename) {
+  std::string winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it";
+  cv::namedWindow(winName);
+  cv::setMouseCallback(winName, onMouse);
+  
+  cv::Point2f angles[4]; //angles of the field
 
-void Padel::calculateFPS(bool file) {
+  if (_fileOpened) {
+    std::cout << "Click on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm.\n";
+    std::srand(time(0));
+    int totalFrame = _cap.get(cv::CAP_PROP_FRAME_COUNT) -2;
+    int key;
+    int count = 0;
+    do {
+      key = -1;
+      cv::Mat original;
+      _cap.set(cv::CAP_PROP_POS_FRAMES, rand() % totalFrame);
+      _cap.read(original);
+
+      do {
+        cv::Mat frame = original.clone();
+
+        if (mousePosition.x == -2) {  //right click on mouse
+          if (count > 0)
+            --count;
+          mousePosition = {-1,-1};
+        }
+        else if (mousePosition.x != -1) {  //if mouse has been clicked
+          if (count >= 4) {   //if user is trying to add fifht point, break
+            std::cout << "Degub: Fifth point -> Breaking\n";
+            key = ' ';
+            break;
+          }
+          angles[count] = mousePosition;
+          ++count;
+          mousePosition = {-1,-1};
+        }
+        
+        /*  //This uses arrows to move the cross around, but its "implementation specific and depends on used backend"
+        key = cv::waitKeyEx(5);
+
+        if (count != 0) {
+          //move the last cross
+          if (key == 2424832)       //left
+            angles[count-1].x--;
+          else if (key == 2555904)  //right
+            angles[count-1].x++;
+          else if (key == 2490368)  //up
+            angles[count-1].y--;
+          else if (key == 2621440)  //down
+            angles[count-1].y++;
+        }
+        */
+
+        //Instead I'll use WASD to move the cross
+        key = cv::waitKey(5);
+
+        if (count != 0) {
+          //move the last cross
+          if (key == 'a')       //left
+            angles[count-1].x--;
+          else if (key == 'd')  //right
+            angles[count-1].x++;
+          else if (key == 'w')  //up
+            angles[count-1].y--;
+          else if (key == 's')  //down
+            angles[count-1].y++;
+        }
+
+        //draw crosses on frame
+        for (int i = 0; i < count; ++i) {
+            cv::drawMarker(frame, angles[i], {0,0,255}, cv::MARKER_TILTED_CROSS, 20, 1);
+        }
+
+        int scale = 10;
+        int offset = 20;
+        cv::rectangle(frame, cv::Rect(cv::Point{offset, offset}, cv::Point{10*scale+offset, 20*scale+offset}), {129,94,61}, -1);
+        cv::line(frame, {offset        ,      3  *scale+offset }, {10*scale+offset,        3  *scale+offset }, {255,255,255}, 1); //horizontal
+        cv::line(frame, {offset        ,     17  *scale+offset }, {10*scale+offset,       17  *scale+offset }, {255,255,255}, 1); //horizontal
+        cv::line(frame, {5*scale+offset,(int)(2.5*scale+offset)}, { 5*scale+offset, (int)(17.5*scale+offset)}, {255,255,255}, 1); //vertical
+        cv::line(frame, {offset        ,     10  *scale+offset }, {10*scale+offset,       10  *scale+offset }, {0  ,0  ,255}, 2); //net
+        cv::drawMarker(frame, {offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+        cv::drawMarker(frame, {10*scale+offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+        cv::drawMarker(frame, {offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+        cv::drawMarker(frame, {10*scale+offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+        //cv::putText(frame, "Select points indicated in green", {offset/2, offset/2}, 0, 0.5, {0,255,0}, 1);
+
+        cv::imshow(winName, frame);
+      }
+      while (key != 'n' && (key != ' ' || count < 4));
+    }
+    while (key != ' ');
+
+    cv::destroyWindow(winName);
+
+    //sort angle points
+    for (int i = 0; i < 4; ++i) {
+      for (int j = i; j < 3; ++j) {
+        if (angles[i].y > angles[j].y) {
+          std::swap(angles[i], angles[j]);
+        }
+      }
+    }
+    if (angles[0].x > angles[1].x)
+      std::swap(angles[0], angles[1]);
+    if (angles[2].x < angles[3].x)
+      std::swap(angles[2], angles[3]);
+
+    std::cout << "Debug: Angles = \n";
+    for (int i = 0; i < 4; ++i) {
+      std::cout << angles[i] << "  -  ";
+    }
+    std::cout << '\n';
+
+    //calculate matrix
+    float zoom = 50;
+    cv::Point2f rect[4] = { {0,0}, {10*zoom,0}, {10*zoom,17*zoom}, {0,17*zoom} };
+    _perspMat = cv::getPerspectiveTransform(angles, rect);
+
+    //save matrix to file
+    std::fstream fout(filename, std::ios::out);
+    fout << _perspMat;
+    fout.close();
+
+    if (_fileOpened)
+      _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+  }
+
+  return false;
+}
+
+void Padel::calculateFPS(bool file)
+{
   _fps = _cap.get(cv::CAP_PROP_FPS);
 
-  //if the property is zero, try to calculate it in a different way
   if (_fps != 0)
     return;
 
+  //if the property is zero, try to calculate it in a different way
   std::cout << "Calculating fps...";
   int num_frames = 60; //number of frames to capture
   time_t start, end;
@@ -264,4 +419,3 @@ void Padel::calculateFPS(bool file) {
 
   _fps = num_frames / seconds;
 }
-
