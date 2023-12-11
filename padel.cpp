@@ -319,7 +319,7 @@ bool Padel::calculatePerspMat(std::string filename) {
         //Instead I'll use WASD to move the cross
         key = cv::waitKey(5);
 
-        if (count != 0) {
+        if (count > 0) {
           //move the last cross
           if (key == 'a')       //left
             angles[count-1].x--;
@@ -358,18 +358,17 @@ bool Padel::calculatePerspMat(std::string filename) {
     cv::destroyWindow(winName);
 
     //sort angle points
-    for (int i = 0; i < 4; ++i) {
-      for (int j = i; j < 3; ++j) {
-        if (angles[i].y > angles[j].y) {
-          std::swap(angles[i], angles[j]);
-        }
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3-i; ++j) {
+        if (angles[j].y > angles[j+1].y)
+          std::swap(angles[j], angles[j+1]);
       }
     }
     if (angles[0].x > angles[1].x)
       std::swap(angles[0], angles[1]);
     if (angles[2].x < angles[3].x)
       std::swap(angles[2], angles[3]);
-
+    
     std::cout << "Debug: Angles = \n";
     for (int i = 0; i < 4; ++i) {
       std::cout << angles[i] << "  -  ";
