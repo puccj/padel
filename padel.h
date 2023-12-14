@@ -57,9 +57,10 @@ class Padel
   void createHeatmap();
 
  private:
-  bool calculatePerspMat(std::string filename);
-  void calculateFPS(bool file);
-
+  //Load parameters (perspective matrix and fps) from file if exists, calculate them otherwise
+  void loadParam(std::string paramFile);
+  void calculatePerspMat(std::string filename);
+  void calculateFPS();
 };
 
 

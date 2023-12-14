@@ -7,7 +7,7 @@ int main() {
   //t.calculateBackground();
   //t.loadBackground("bg.png");
   //t.showBackground();
-  t.showTrackbars();
+  //t.showTrackbars();
   t.process();
   
   std::cout << "FINE\n";

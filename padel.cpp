@@ -26,18 +26,7 @@ Padel::Padel(std::string filePath)
     return;
   }
 
-  //Load parameters from file if exists, calculate them otherwise
-  std::string paramFile = filePath + "-param.dat";
-  std::fstream fin(paramFile, std::ios::in);
-  if (fin.is_open()) {
-    //TO DO: read from file
-  }
-  else {
-    std::cout << "Debug: Paramfile not present, recalculating\n";
-    calculatePerspMat(paramFile);
-  }
-
-  calculateFPS(true);
+  loadParam(".//parameters/" + filePath + ".dat");
 }
 
 Padel::Padel(int camIndex)
@@ -48,7 +37,8 @@ Padel::Padel(int camIndex)
     std::cerr << "Error while opening camera " << camIndex << '\n';
     return;
   }
-  calculateFPS(false);
+
+  loadParam(".//parameters/" + std::to_string(camIndex) + "-param.dat");
 }
 
 void Padel::showTrackbars() {
@@ -262,15 +252,44 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
 
 // -- Private methods -- //
 
-bool Padel::calculatePerspMat(std::string filename) {
-  std::string winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it";
+void Padel::loadParam(std::string paramFile) {
+  std::fstream fin(paramFile, std::ios::in);
+  if (fin.is_open()) {    
+    _perspMat = cv::Mat(3, 3, CV_64FC1);
+    
+    fin >> _fps;
+
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j)
+        fin >> _perspMat.at<double>(i,j);
+  }
+  else {
+    calculatePerspMat(paramFile);
+    calculateFPS();
+    
+    //save data
+    std::fstream fout(paramFile, std::ios::out);
+    fout << _fps << '\n';
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j)
+        fout << _perspMat.at<double>(i,j) << ' ';
+      fout << '\n';
+    }
+
+    fout.close();
+  }
+}
+
+void Padel::calculatePerspMat(std::string filename)
+{
+  std::string winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm.";
   cv::namedWindow(winName);
   cv::setMouseCallback(winName, onMouse);
   
   cv::Point2f angles[4]; //angles of the field
 
   if (_fileOpened) {
-    std::cout << "Click on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm.\n";
+    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm.\n";
     std::srand(time(0));
     int totalFrame = _cap.get(cv::CAP_PROP_FRAME_COUNT) -2;
     int key;
@@ -291,7 +310,6 @@ bool Padel::calculatePerspMat(std::string filename) {
         }
         else if (mousePosition.x != -1) {  //if mouse has been clicked
           if (count >= 4) {   //if user is trying to add fifht point, break
-            std::cout << "Degub: Fifth point -> Breaking\n";
             key = ' ';
             break;
           }
@@ -333,15 +351,16 @@ bool Padel::calculatePerspMat(std::string filename) {
 
         //draw crosses on frame
         for (int i = 0; i < count; ++i) {
-            cv::drawMarker(frame, angles[i], {0,0,255}, cv::MARKER_TILTED_CROSS, 20, 1);
+          cv::drawMarker(frame, angles[i], {0,0,255}, cv::MARKER_TILTED_CROSS, 20, 1);
         }
 
+        // Draw little field to show where to put crosses
         int scale = 10;
         int offset = 20;
         cv::rectangle(frame, cv::Rect(cv::Point{offset, offset}, cv::Point{10*scale+offset, 20*scale+offset}), {129,94,61}, -1);
         cv::line(frame, {offset        ,      3  *scale+offset }, {10*scale+offset,        3  *scale+offset }, {255,255,255}, 1); //horizontal
         cv::line(frame, {offset        ,     17  *scale+offset }, {10*scale+offset,       17  *scale+offset }, {255,255,255}, 1); //horizontal
-        cv::line(frame, {5*scale+offset,(int)(2.5*scale+offset)}, { 5*scale+offset, (int)(17.5*scale+offset)}, {255,255,255}, 1); //vertical
+        cv::line(frame, {5*scale+offset,(int)(2.7*scale+offset)}, { 5*scale+offset, (int)(17.3*scale+offset)}, {255,255,255}, 1); //vertical
         cv::line(frame, {offset        ,     10  *scale+offset }, {10*scale+offset,       10  *scale+offset }, {0  ,0  ,255}, 2); //net
         cv::drawMarker(frame, {offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
         cv::drawMarker(frame, {10*scale+offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
@@ -368,31 +387,18 @@ bool Padel::calculatePerspMat(std::string filename) {
       std::swap(angles[0], angles[1]);
     if (angles[2].x < angles[3].x)
       std::swap(angles[2], angles[3]);
-    
-    std::cout << "Debug: Angles = \n";
-    for (int i = 0; i < 4; ++i) {
-      std::cout << angles[i] << "  -  ";
-    }
-    std::cout << '\n';
 
     //calculate matrix
     float zoom = 50;
     cv::Point2f rect[4] = { {0,0}, {10*zoom,0}, {10*zoom,17*zoom}, {0,17*zoom} };
     _perspMat = cv::getPerspectiveTransform(angles, rect);
 
-    //save matrix to file
-    std::fstream fout(filename, std::ios::out);
-    fout << _perspMat;
-    fout.close();
-
     if (_fileOpened)
       _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
   }
-
-  return false;
 }
 
-void Padel::calculateFPS(bool file)
+void Padel::calculateFPS()
 {
   _fps = _cap.get(cv::CAP_PROP_FPS);
 
@@ -410,10 +416,10 @@ void Padel::calculateFPS(bool file)
     _cap >> frame;
   time(&end);
 
-  double seconds = difftime (end, start);
+  double seconds = difftime(end, start);
   std::cout << "     Done (" << num_frames/seconds << " fps)\n";
 
-  if (file)
+  if (_fileOpened)
     _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 
   _fps = num_frames / seconds;
