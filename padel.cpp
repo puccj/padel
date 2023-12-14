@@ -110,14 +110,12 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       delay = 18;   //higher number means less lag, but less percieved fluidity
   }
   
-  cv::Mat frame, fgMask, bg;
   std::fstream fout(outputFile, std::ios::out);
-
+  cv::Mat frame, fgMask, bg;
+  cv::Ptr<cv::BackgroundSubtractor> pBackSub; //BG subtractor
+  
   if (_background.empty()) {
     std::cout << "Debug: without BG\n";
-    
-    //create Background Subtractor objects
-    cv::Ptr<cv::BackgroundSubtractor> pBackSub;
     if (mode == bgSubMode::KNN)
       pBackSub = cv::createBackgroundSubtractorKNN();
     else if (mode == bgSubMode::MOG2)
@@ -127,123 +125,76 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       fout.close();
       return false;
     }
+  }
+  else {
+    std::cout << "Debug: With BG\n";
+    cv::cvtColor(_background, bg, cv::COLOR_BGR2GRAY);
+    bg.convertTo(bg, CV_8U);    //needed to confront it with frame
+  }
   
-    while (true) {
-      _cap >> frame;;
-      if (frame.empty()) {
-        std::cout << "End of video\n";
-        fout.close();
-        return true;
-      }
-  
-      //Foreground detection and update the background model
+  /////////// ----- Main loop ----- ///////////
+  while (true) {
+    _cap >> frame;;
+    if (frame.empty()) {
+      std::cout << "End of video\n";
+      fout.close();
+      return true;
+    } 
+
+    //Foreground detection and update the background model
+    if (_background.empty()) {
       pBackSub->apply(frame, fgMask, learningRateValue);
       if (removeShadows)
         cv::threshold(fgMask, fgMask, 200, 255, cv::THRESH_BINARY);           //thresholding to remove shadows
-      cv::dilate(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue); //dilate the image (no inside dark regions)
-      cv::erode(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue);  //erode the image (make contours have the original size)
-
-
-      //Contours drawing
-      std::vector<cv::Mat> contours;
-      cv::findContours(fgMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-      //if (drawContours)
-      cv::drawContours(frame, contours, -1, {255,0,0}, 1);
-    
-      for (auto contour : contours) {
-        //skip if area of contour is too little (it's probably noise)
-        if (cv::contourArea(contour) < minAreaValue)
-          continue;
-      
-        //otherwise draw a rectangle
-        cv::Rect r = cv::boundingRect(contour);
-        //if (drawRects)
-        cv::rectangle(frame, r, {0,255,0}, 2);
-
-        //Find position of feet and save on file
-        cv::Point feet = {r.x + r.width/2, r.y + r.height};
-        cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
-        fout << feet << ' ';
-      }
-
-      if (delay > 0) { //Only show progress if delay >= 0
-        //pBackSub->getBackgroundImage(bg);
-        imshow("Frame", frame);
-        imshow("FG Mask", fgMask);
-        // imshow("BG", bg);
-
-        int k = cv::waitKey(delay);
-        if (k == 'q' || k == 27) {
-          fout.close();
-          return true;
-        }
-      }
-
-      //New frame -> new line on file
-      fout << '\n';
     }
-  }
-  else { //BG not empty 
-    std::cout << "Debug: With BG\n";
-
-    cv::cvtColor(_background, bg, cv::COLOR_BGR2GRAY);
-    bg.convertTo(bg, CV_8U);    //needed to confront it with frame
-
-    while (true) { 
-      _cap.read(frame);
-      if (frame.empty()) {
-        std::cout << "End of video\n";
-        return true;
-      }
-
-      cv::Mat fgMask(frame.size(), CV_32FC1);  //gray frame
+    else {
+      fgMask = cv::Mat(frame.size(), CV_32FC1);  //gray frame
       cv::cvtColor(frame, fgMask, cv::COLOR_BGR2GRAY);
-
-      //Foreground detection
       cv::absdiff(fgMask, bg, fgMask);                                        //subtract background from image
       cv::threshold(fgMask, fgMask, thresholdValue, 255, cv::THRESH_BINARY);  //thresholding to convert to binary
-      cv::dilate(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue); //dilate the image (no inside dark regions)
-      cv::erode(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue);  //erode the image (make contours have the original size)
-    
-      //Contours drawing
-      std::vector<cv::Mat> contours;
-      cv::findContours(fgMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-      //if (drawContours)
-      cv::drawContours(frame, contours, -1, {255,0,0}, 1);
-    
-      for (auto contour : contours) {
-        //skip if area of contour is too little (it's probably noise)
-        if (cv::contourArea(contour) < minAreaValue)
-          continue;
-      
-        //otherwise draw a rectangle
-        cv::Rect r = cv::boundingRect(contour);
-        //if (drawRects)
-        cv::rectangle(frame, r, {0,255,0}, 2);
-
-        //Find position of feet and save on file
-        cv::Point feet = {r.x + r.width/2, r.y + r.height};
-        cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
-        fout << feet << ' ';
-      }
-
-      if (delay > 0) { //Only show progress if delay >= 0
-        //pBackSub->getBackgroundImage(bg);
-        imshow("Frame", frame);
-        imshow("FG Mask", fgMask);
-        // imshow("BG", bg);
-
-        int k = cv::waitKey();
-        if (k == 'q' || k == 27) {
-          fout.close();
-          return true;
-        }
-      }
-      
-      //New frame -> new line on file
-      fout << '\n';
     }
-  } //end else
+    cv::dilate(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue); //dilate the image (no inside dark regions)
+    cv::erode(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue);  //erode the image (make contours have the original size)
+
+
+    //Contours drawing
+    std::vector<cv::Mat> contours;
+    cv::findContours(fgMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    //if (drawContours)
+    cv::drawContours(frame, contours, -1, {255,0,0}, 1);
+    
+    for (auto contour : contours) {
+      //skip if area of contour is too little (it's probably noise)
+      if (cv::contourArea(contour) < minAreaValue)
+        continue;
+    
+      //otherwise draw a rectangle
+      cv::Rect r = cv::boundingRect(contour);
+      //if (drawRects)
+      cv::rectangle(frame, r, {0,255,0}, 2);
+
+      //Find position of feet and save on file
+      cv::Point feet = {r.x + r.width/2, r.y + r.height};
+      cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
+      fout << feet << ' ';
+    }
+
+    if (delay > 0) { //Only show progress if delay >= 0
+      //pBackSub->getBackgroundImage(bg);
+      cv::imshow("Frame", frame);
+      cv::imshow("FG Mask", fgMask);
+      // imshow("BG", bg);
+ 
+      int k = cv::waitKey(delay);
+      if (k == 'q' || k == 27) {
+        fout.close();
+        return true;
+      }
+    }
+    
+    //New frame -> new line on file
+    fout << '\n';
+  }
   
   fout.close();
   return true;
