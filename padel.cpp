@@ -103,6 +103,7 @@ bool Padel::loadBackground(std::string filename) {
 }
 
 bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool removeShadows) {
+  //TO DO: change default output name
   if (delay == 0) {
     if (_fileOpened)
       delay = 1000/_fps;
@@ -195,10 +196,11 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       fout << result << ' ';
 
       //draw points in the graphic
+      //TO DO: draw only the best 4 ones
       result.x += offset;
       result.y += offset;
       circle(field, result, 1, {255,0,255}, 3, cv::LINE_AA);
-
+      //circle(field, result, 1, {185,185,185}, 3, cv::LINE_AA);
     }
 
     if (delay > 0) { //Only show progress if delay >= 0
@@ -206,6 +208,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       cv::imshow("Frame", frame);
       cv::imshow("Field", field);
       //cv::imshow("Transformed", transformed);
+      cv::bitwise_not(fgMask, fgMask);
       cv::imshow("FG Mask", fgMask);
       // imshow("BG", bg);
       
@@ -264,113 +267,116 @@ void Padel::calculatePerspMat(std::string filename)
   
   cv::Point2f angles[4]; //angles of the field
 
-  if (_fileOpened) {
+  if (_fileOpened)
     std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm.\n";
-    std::srand(time(0));
-    int totalFrame = _cap.get(cv::CAP_PROP_FRAME_COUNT) -2;
-    int key;
-    int count = 0;
-    do {
-      key = -1;
-      cv::Mat original;
-      _cap.set(cv::CAP_PROP_POS_FRAMES, rand() % totalFrame);
-      _cap.read(original);
+  else
+    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'space' to confirm.\n";
 
-      do {
-        cv::Mat frame = original.clone();
-
-        if (mousePosition.x == -2) {  //right click on mouse
-          if (count > 0)
-            --count;
-          mousePosition = {-1,-1};
-        }
-        else if (mousePosition.x != -1) {  //if mouse has been clicked
-          if (count >= 4) {   //if user is trying to add fifht point, break
-            key = ' ';
-            break;
-          }
-          angles[count] = mousePosition;
-          ++count;
-          mousePosition = {-1,-1};
-        }
-        
-        /*  //This uses arrows to move the cross around, but its "implementation specific and depends on used backend"
-        key = cv::waitKeyEx(5);
-
-        if (count != 0) {
-          //move the last cross
-          if (key == 2424832)       //left
-            angles[count-1].x--;
-          else if (key == 2555904)  //right
-            angles[count-1].x++;
-          else if (key == 2490368)  //up
-            angles[count-1].y--;
-          else if (key == 2621440)  //down
-            angles[count-1].y++;
-        }
-        */
-
-        //Instead I'll use WASD to move the cross
-        key = cv::waitKey(5);
-
-        if (count > 0) {
-          //move the last cross
-          if (key == 'a')       //left
-            angles[count-1].x--;
-          else if (key == 'd')  //right
-            angles[count-1].x++;
-          else if (key == 'w')  //up
-            angles[count-1].y--;
-          else if (key == 's')  //down
-            angles[count-1].y++;
-        }
-
-        //draw crosses on frame
-        for (int i = 0; i < count; ++i) {
-          cv::drawMarker(frame, angles[i], {0,0,255}, cv::MARKER_TILTED_CROSS, 20, 1);
-        }
-
-        // Draw little field to show where to put crosses
-        int scale = 10;
-        int offset = 20;
-        cv::rectangle(frame, cv::Rect(cv::Point{offset, offset}, cv::Point{10*scale+offset, 20*scale+offset}), {129,94,61}, -1);
-        cv::line(frame, {offset        ,      3  *scale+offset }, {10*scale+offset,        3  *scale+offset }, {255,255,255}, 1); //horizontal
-        cv::line(frame, {offset        ,     17  *scale+offset }, {10*scale+offset,       17  *scale+offset }, {255,255,255}, 1); //horizontal
-        cv::line(frame, {5*scale+offset,(int)(2.7*scale+offset)}, { 5*scale+offset, (int)(17.3*scale+offset)}, {255,255,255}, 1); //vertical
-        cv::line(frame, {offset        ,     10  *scale+offset }, {10*scale+offset,       10  *scale+offset }, {0  ,0  ,255}, 2); //net
-        cv::drawMarker(frame, {offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
-        cv::drawMarker(frame, {10*scale+offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
-        cv::drawMarker(frame, {offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
-        cv::drawMarker(frame, {10*scale+offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
-        //cv::putText(frame, "Select points indicated in green", {offset/2, offset/2}, 0, 0.5, {0,255,0}, 1);
-
-        cv::imshow(winName, frame);
-      }
-      while (key != 'n' && (key != ' ' || count < 4));
-    }
-    while (key != ' ');
-
-    cv::destroyWindow(winName);
-
-    //sort angle points
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3-i; ++j) {
-        if (angles[j].y > angles[j+1].y)
-          std::swap(angles[j], angles[j+1]);
-      }
-    }
-    if (angles[0].x > angles[1].x)
-      std::swap(angles[0], angles[1]);
-    if (angles[2].x < angles[3].x)
-      std::swap(angles[2], angles[3]);
-
-    //calculate matrix
-    cv::Point2f rect[4] = { {0,0}, {10,0}, {10,17}, {0,17} };
-    _perspMat = cv::getPerspectiveTransform(angles, rect);
-
+  std::srand(time(0));
+  int totalFrame = _cap.get(cv::CAP_PROP_FRAME_COUNT) -2;
+  int key;
+  int count = 0;
+  do {
+    key = -1;
+    cv::Mat original;
     if (_fileOpened)
-      _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+      _cap.set(cv::CAP_PROP_POS_FRAMES, rand() % totalFrame);
+    _cap.read(original);
+
+    do {
+      cv::Mat frame = original.clone();
+
+      if (mousePosition.x == -2) {  //right click on mouse
+        if (count > 0)
+          --count;
+        mousePosition = {-1,-1};
+      }
+      else if (mousePosition.x != -1) {  //if mouse has been clicked
+        if (count >= 4) {   //if user is trying to add fifht point, break
+          key = ' ';
+          break;
+        }
+        angles[count] = mousePosition;
+        ++count;
+        mousePosition = {-1,-1};
+      }
+        
+      /*  //This uses arrows to move the cross around, but its "implementation specific and depends on used backend"
+      key = cv::waitKeyEx(5);
+
+      if (count != 0) {
+        //move the last cross
+        if (key == 2424832)       //left
+          angles[count-1].x--;
+        else if (key == 2555904)  //right
+          angles[count-1].x++;
+        else if (key == 2490368)  //up
+          angles[count-1].y--;
+        else if (key == 2621440)  //down
+          angles[count-1].y++;
+      }
+      */
+
+      //Instead I'll use WASD to move the cross
+      key = cv::waitKey(5);
+
+      if (count > 0) {
+        //move the last cross
+        if (key == 'a')       //left
+          angles[count-1].x--;
+        else if (key == 'd')  //right
+          angles[count-1].x++;
+        else if (key == 'w')  //up
+          angles[count-1].y--;
+        else if (key == 's')  //down
+          angles[count-1].y++;
+      }
+
+      //draw crosses on frame
+      for (int i = 0; i < count; ++i) {
+        cv::drawMarker(frame, angles[i], {0,0,255}, cv::MARKER_TILTED_CROSS, 20, 1);
+      }
+
+      // Draw little field to show where to put crosses
+      int scale = 10;
+      int offset = 20;
+      cv::rectangle(frame, cv::Rect(cv::Point{offset, offset}, cv::Point{10*scale+offset, 20*scale+offset}), {129,94,61}, -1);
+      cv::line(frame, {offset        ,      3  *scale+offset }, {10*scale+offset,        3  *scale+offset }, {255,255,255}, 1); //horizontal
+      cv::line(frame, {offset        ,     17  *scale+offset }, {10*scale+offset,       17  *scale+offset }, {255,255,255}, 1); //horizontal
+      cv::line(frame, {5*scale+offset,(int)(2.7*scale+offset)}, { 5*scale+offset, (int)(17.3*scale+offset)}, {255,255,255}, 1); //vertical
+      cv::line(frame, {offset        ,     10  *scale+offset }, {10*scale+offset,       10  *scale+offset }, {0  ,0  ,255}, 2); //net
+      cv::drawMarker(frame, {offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+      cv::drawMarker(frame, {10*scale+offset, offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+      cv::drawMarker(frame, {offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+      cv::drawMarker(frame, {10*scale+offset, 17*scale+offset}, {0,255,0}, cv::MARKER_TILTED_CROSS, scale, 2);
+      //cv::putText(frame, "Select points indicated in green", {offset/2, offset/2}, 0, 0.5, {0,255,0}, 1);
+
+      cv::imshow(winName, frame);
+    }
+    while (_fileOpened && key != 'n' && (key != ' ' || count < 4));
   }
+  while (key != ' ');
+
+  cv::destroyWindow(winName);
+
+  //sort angle points
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 3-i; ++j) {
+      if (angles[j].y > angles[j+1].y)
+        std::swap(angles[j], angles[j+1]);
+    }
+  }
+  if (angles[0].x > angles[1].x)
+    std::swap(angles[0], angles[1]);
+  if (angles[2].x < angles[3].x)
+    std::swap(angles[2], angles[3]);
+
+  //calculate matrix
+  cv::Point2f rect[4] = { {0,0}, {10,0}, {10,17}, {0,17} };
+  _perspMat = cv::getPerspectiveTransform(angles, rect);
+
+  if (_fileOpened)
+    _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 }
 
 void Padel::calculateFPS()
