@@ -134,6 +134,8 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
   
   /////////// ----- Main loop ----- ///////////
   while (true) {
+    time_t start, end;
+    time(&start);
     _cap >> frame;;
     if (frame.empty()) {
       std::cout << "End of video\n";
@@ -156,6 +158,14 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     cv::dilate(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue); //dilate the image (no inside dark regions)
     cv::erode(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue);  //erode the image (make contours have the original size)
 
+    int zoom = 40;
+    int offset = 2*zoom;
+    cv::Mat field(20*zoom + 2*offset, 10*zoom + 2*offset, CV_8UC3, {209,186,138});
+    cv::rectangle(field, cv::Rect(cv::Point{offset, offset}, cv::Point{10*zoom+offset, 20*zoom+offset}), {129,94,61}, -1);
+    cv::line(field, {offset        ,     3  *zoom+offset }, {10*zoom+offset,        3  *zoom+offset }, {255,255,255}, 1); //horizontal
+    cv::line(field, {offset        ,    17  *zoom+offset }, {10*zoom+offset,       17  *zoom+offset }, {255,255,255}, 1); //horizontal
+    cv::line(field, {5*zoom+offset,(int)(2.7*zoom+offset)}, { 5*zoom+offset, (int)(17.3*zoom+offset)}, {255,255,255}, 1); //vertical
+    cv::line(field, {offset        ,    10  *zoom+offset }, {10*zoom+offset,       10  *zoom+offset }, {0  ,0  ,255}, 2); //net
 
     //Contours drawing
     std::vector<cv::Mat> contours;
@@ -173,19 +183,34 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       //if (drawRects)
       cv::rectangle(frame, r, {0,255,0}, 2);
 
-      //Find position of feet and save on file
-      cv::Point feet = {r.x + r.width/2, r.y + r.height};
+      //Find position of feet
+      cv::Point2f feet = {(float)(r.x + r.width/2), (float)(r.y + r.height)};
       cv::circle(frame, feet, 1, {255,0,255}, 3, cv::LINE_AA);
-      fout << feet << ' ';
+
+      //calculate perspective of point and save them
+      cv::Point3f homogeneous; //= warp.inv() * point;
+      cv::perspectiveTransform(cv::Mat(1, 1, CV_32FC2, &feet), cv::Mat(1, 1, CV_32FC2, &homogeneous), _perspMat);
+      cv::Point2f result(homogeneous.x, homogeneous.y);  // Drop the z=1 to get out of homogeneous coordinates
+      result *= zoom;
+      fout << result << ' ';
+
+      //draw points in the graphic
+      result.x += offset;
+      result.y += offset;
+      circle(field, result, 1, {255,0,255}, 3, cv::LINE_AA);
+
     }
 
     if (delay > 0) { //Only show progress if delay >= 0
       //pBackSub->getBackgroundImage(bg);
       cv::imshow("Frame", frame);
+      cv::imshow("Field", field);
+      //cv::imshow("Transformed", transformed);
       cv::imshow("FG Mask", fgMask);
       // imshow("BG", bg);
- 
-      int k = cv::waitKey(delay);
+      
+      time(&end);
+      int k = cv::waitKey(delay - difftime(end, start));
       if (k == 'q' || k == 27) {
         fout.close();
         return true;
@@ -340,8 +365,7 @@ void Padel::calculatePerspMat(std::string filename)
       std::swap(angles[2], angles[3]);
 
     //calculate matrix
-    float zoom = 50;
-    cv::Point2f rect[4] = { {0,0}, {10*zoom,0}, {10*zoom,17*zoom}, {0,17*zoom} };
+    cv::Point2f rect[4] = { {0,0}, {10,0}, {10,17}, {0,17} };
     _perspMat = cv::getPerspectiveTransform(angles, rect);
 
     if (_fileOpened)
