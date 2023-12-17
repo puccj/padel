@@ -22,7 +22,7 @@ Padel::Padel(std::string filePath)
       _fileOpened(true)
 {
   if (!_cap.isOpened()) {
-    std::cerr << "Error: could not open " << filePath << '\n';
+    throw std::runtime_error{"PADEL ERROR: could not open " + filePath};
     return;
   }
 
@@ -34,7 +34,7 @@ Padel::Padel(int camIndex)
     _fileOpened{false}
 {
   if (!_cap.isOpened()) {
-    std::cerr << "Error while opening camera " << camIndex << '\n';
+    throw std::runtime_error{"PADEL ERROR while opening camera " + std::to_string(camIndex)};
     return;
   }
   _cap.set(cv::CAP_PROP_FPS, 20);
@@ -97,7 +97,7 @@ void Padel::calculateBackground(double seconds, double weight) {
 bool Padel::loadBackground(std::string filename) {
   _background = cv::imread(filename);
   if (_background.empty()) {
-    std::cerr << "Error while loading the background from " << filename << '\n';
+    std::cerr << "PADEL ERROR while loading the background from " << filename << '\n';
     return false;
   }
   return true;
@@ -113,7 +113,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
   }
   
   std::fstream fout(outputFile, std::ios::out);
-  cv::Mat frame, fgMask, bg;
+  cv::Mat frame, fgMask, bg, original;
   cv::Ptr<cv::BackgroundSubtractor> pBackSub; //BG subtractor
   
   if (_background.empty()) {
@@ -123,7 +123,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     else if (mode == bgSubMode::MOG2)
       pBackSub = cv::createBackgroundSubtractorMOG2();
     else {
-      std::cerr << "ERROR: process was called without a BG and an unknown mode for calculation has been given\n";
+      std::cerr << "PADEL ERROR: process was called without a BG and an unknown mode for calculation has been given\n";
       fout.close();
       return false;
     }
@@ -134,16 +134,22 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     bg.convertTo(bg, CV_8U);    //needed to confront it with frame
   }
   
+  _cap >> frame;
+  cv::VideoWriter wtrOriginal("original.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
+  cv::VideoWriter wtrFrame("analyzed.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
+
   /////////// ----- Main loop ----- ///////////
   while (true) {
     time_t start, end;
     time(&start);
-    _cap >> frame;;
+    _cap >> frame;
     if (frame.empty()) {
       std::cout << "End of video\n";
       fout.close();
       return true;
-    } 
+    }
+
+    original = frame.clone(); //save original frame to create output video
 
     //Foreground detection and update the background model
     if (_background.empty()) {
@@ -212,6 +218,10 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       cv::bitwise_not(fgMask, fgMask);
       cv::imshow("FG Mask", fgMask);
       // imshow("BG", bg);
+
+      //Save videos
+      wtrOriginal.write(original);
+      wtrFrame.write(frame);
       
       time(&end);
       int k = cv::waitKey(delay - difftime(end, start));
