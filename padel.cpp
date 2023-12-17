@@ -37,6 +37,7 @@ Padel::Padel(int camIndex)
     std::cerr << "Error while opening camera " << camIndex << '\n';
     return;
   }
+  _cap.set(cv::CAP_PROP_FPS, 20);
 
   loadParam(".//parameters/" + std::to_string(camIndex) + "-param.dat");
 }
@@ -259,8 +260,7 @@ void Padel::loadParam(std::string paramFile) {
   }
 }
 
-void Padel::calculatePerspMat(std::string filename)
-{
+void Padel::calculatePerspMat(std::string filename) {
   std::string winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm.";
   cv::namedWindow(winName);
   cv::setMouseCallback(winName, onMouse);
@@ -396,12 +396,11 @@ void Padel::calculateFPS()
   for(int i = 0; i < num_frames; i++)
     _cap >> frame;
   time(&end);
-
   double seconds = difftime(end, start);
-  std::cout << "     Done (" << num_frames/seconds << " fps)\n";
 
   if (_fileOpened)
     _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
 
   _fps = num_frames / seconds;
+  std::cout << "     Done (" << _fps << " fps)\n";
 }
