@@ -17,21 +17,23 @@ void Padel::onMouse(int event, int x, int y, int flag, void *param) {
   }
 }
 
-Padel::Padel(std::string filePath)
-    : _cap{cv::VideoCapture(filePath)},
-      _fileOpened(true)
+Padel::Padel(std::string filename)
+    : _cap{cv::VideoCapture(filename)},
+      _fileOpened{true},
+      _camname{filename.substr(0, filename.find_last_of('.'))}  // Remove the file extension
 {
   if (!_cap.isOpened()) {
-    throw std::runtime_error{"PADEL ERROR: could not open " + filePath};
+    throw std::runtime_error{"PADEL ERROR: could not open " + filename};
     return;
   }
 
-  loadParam(".//parameters/" + filePath + ".dat");
+  loadParam(".//parameters/" + filename + ".dat");
 }
 
 Padel::Padel(int camIndex)
   : _cap{cv::VideoCapture(camIndex)},
-    _fileOpened{false}
+    _fileOpened{false},
+    _camname{std::to_string(camIndex)}
 {
   if (!_cap.isOpened()) {
     throw std::runtime_error{"PADEL ERROR while opening camera " + std::to_string(camIndex)};
@@ -90,29 +92,34 @@ void Padel::calculateBackground(double seconds, double weight) {
 
   std::cout << "     Done\n";
   _background = acc;
-
-  cv::imshow("Background", _background/255);
 }
 
 bool Padel::loadBackground(std::string filename) {
   _background = cv::imread(filename);
   if (_background.empty()) {
-    std::cerr << "PADEL ERROR while loading the background from " << filename << '\n';
+    std::cerr << "PADEL WARNING Could not load the background image " << filename << ". FGmask will be calculated without using a background \n";
     return false;
   }
   return true;
 }
 
-bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool removeShadows) {
-  //TO DO: change default output name
+bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode mode, bool removeShadows) {
+  if (outputFile == "Default")
+    outputFile = _camname + "-data.dat";
+
   if (delay == 0) {
     if (_fileOpened)
       delay = 1000/_fps;
     else
-      delay = 18;   //higher number means less lag, but less percieved fluidity
+      delay = 15;   //higher number means less lag, but less percieved fluidity
   }
+  else if (delay < 0)
+    std::cout << "Analyzing...";
   
-  std::fstream fout(outputFile, std::ios::out);
+  //Needed Mats
+  int zoom = 40;
+  int offset = 2*zoom;
+  cv::Mat field(20*zoom + 2*offset, 10*zoom + 2*offset, CV_8UC3, {209,186,138});  //2D field graphics
   cv::Mat frame, fgMask, bg, original;
   cv::Ptr<cv::BackgroundSubtractor> pBackSub; //BG subtractor
   
@@ -123,8 +130,7 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     else if (mode == bgSubMode::MOG2)
       pBackSub = cv::createBackgroundSubtractorMOG2();
     else {
-      std::cerr << "PADEL ERROR: process was called without a BG and an unknown mode for calculation has been given\n";
-      fout.close();
+      throw std::runtime_error{"PADEL ERROR: process was called without a BG and an unknown mode for calculation has been given."};
       return false;
     }
   }
@@ -134,19 +140,28 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     bg.convertTo(bg, CV_8U);    //needed to confront it with frame
   }
   
+  //Objects to save data and videos
+  std::fstream fout;
+  if (outputFile != "None")
+    fout.open(outputFile, std::ios::out);
+
   _cap >> frame;
-  cv::VideoWriter wtrOriginal("original.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
-  cv::VideoWriter wtrFrame("analyzed.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
+  //cv::VideoWriter wtrOriginal(_camname + "original.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
+  cv::VideoWriter wtrFrame(_camname + "-box.mp4", cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), true);
+  cv::VideoWriter wtrMask (_camname + "-BW.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), false);
+  cv::VideoWriter wtrField(_camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
+
 
   /////////// ----- Main loop ----- ///////////
   while (true) {
-    time_t start, end;
+    time_t start, end;  //to know how long each frame take to be analyzed
     time(&start);
+
     _cap >> frame;
     if (frame.empty()) {
-      std::cout << "End of video\n";
-      fout.close();
-      return true;
+      if (delay > 0)
+        std::cerr << "End of video\n";
+      break;
     }
 
     original = frame.clone(); //save original frame to create output video
@@ -166,9 +181,8 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
     cv::dilate(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue); //dilate the image (no inside dark regions)
     cv::erode(fgMask, fgMask, cv::Mat(), cv::Point(-1,-1), dilationValue);  //erode the image (make contours have the original size)
 
-    int zoom = 40;
-    int offset = 2*zoom;
-    cv::Mat field(20*zoom + 2*offset, 10*zoom + 2*offset, CV_8UC3, {209,186,138});
+    //draw the 2D field graphics
+    field = cv::Scalar{209, 186, 138};
     cv::rectangle(field, cv::Rect(cv::Point{offset, offset}, cv::Point{10*zoom+offset, 20*zoom+offset}), {129,94,61}, -1);
     cv::line(field, {offset        ,     3  *zoom+offset }, {10*zoom+offset,        3  *zoom+offset }, {255,255,255}, 1); //horizontal
     cv::line(field, {offset        ,    17  *zoom+offset }, {10*zoom+offset,       17  *zoom+offset }, {255,255,255}, 1); //horizontal
@@ -200,7 +214,8 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       cv::perspectiveTransform(cv::Mat(1, 1, CV_32FC2, &feet), cv::Mat(1, 1, CV_32FC2, &homogeneous), _perspMat);
       cv::Point2f result(homogeneous.x, homogeneous.y);  // Drop the z=1 to get out of homogeneous coordinates
       result *= zoom;
-      fout << result << ' ';
+      if (outputFile != "None")
+        fout << result << ' ';
 
       //draw points in the graphic
       //TO DO: draw only the best 4 ones
@@ -210,32 +225,41 @@ bool Padel::process(std::string outputFile, int delay, bgSubMode mode, bool remo
       //circle(field, result, 1, {185,185,185}, 3, cv::LINE_AA);
     }
 
+    //invert the fgMask before saving and showing (Marco likes it that way)
+    cv::bitwise_not(fgMask, fgMask);
+
+    if (saveVideo) {
+      //Save videos
+      wtrFrame.write(frame);
+      wtrField.write(field);
+      wtrMask.write(fgMask);
+    }
+
     if (delay > 0) { //Only show progress if delay >= 0
       //pBackSub->getBackgroundImage(bg);
       cv::imshow("Frame", frame);
       cv::imshow("Field", field);
-      //cv::imshow("Transformed", transformed);
-      cv::bitwise_not(fgMask, fgMask);
       cv::imshow("FG Mask", fgMask);
+      //cv::imshow("Transformed", transformed);
       // imshow("BG", bg);
 
-      //Save videos
-      wtrOriginal.write(original);
-      wtrFrame.write(frame);
-      
       time(&end);
-      int k = cv::waitKey(delay - difftime(end, start));
-      if (k == 'q' || k == 27) {
-        fout.close();
-        return true;
-      }
+      if (cv::waitKey(delay - difftime(end, start)) == 'q')
+        break;
     }
     
     //New frame -> new line on file
-    fout << '\n';
+    if (outputFile != "None")
+      fout << '\n';
   }
   
-  fout.close();
+  wtrFrame.release();
+  wtrField.release();
+  wtrMask.release();
+  fout.close();   //closing if no file is opened simply has no effect. Safe to leave this line un-iffed
+
+  if (delay < 0)
+    std::cout << "  Done!\n";
   return true;
 }
 

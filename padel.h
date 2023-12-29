@@ -20,12 +20,13 @@ class Padel
 
   cv::VideoCapture _cap;
   bool _fileOpened;
+  std::string _camname;
   cv::Mat _perspMat; //perspective matrix
   double _fps;
   cv::Mat _background;
 
  public:
-  Padel(std::string filePath);  //open a video from a file
+  Padel(std::string filename);  //open a video from a file
   Padel(int camIndex);          //open a camera
 
   void showTrackbars();
@@ -42,16 +43,18 @@ class Padel
   /// @return false if an error occurs
   bool loadBackground(std::string filename);
 
-  /// @brief Produces data of positions for the current frame and optionally show video with box around each person
-  /// @param outputFile File where to save data
-  /// @param delay Delay between each shown frame. If 0 (default), the video is shown with original fps. If negative the video is not shown at all
+  /// @brief Analyze video stream producing data of player positions and/or show and/or save videos: boxed player, FGmask and 2D field graphics.
+  /// @param delay Delay between each shown frame. If 0 (default), the video is shown with original fps. If negative the video is not shown at all.
+  /// @param saveVideo Whether or not to save videos as videofiles.
+  /// @param outputFile Filename where to save data. If set to "None", no output data will be produced.
+  /// If set to "Default" (default), the video is saved as "<camIndex>-data.dat" or "<filename>-data.dat".
   /// @param mode Mode use to get the foreground Mask. Only used if background is not pre-set
   /// @param removeShadows Whether to consider shadows to create the box. Only used if background is not pre-set
   /// @return false if an error occurs
-  bool process(std::string outputFile = "output.dat", int delay = 0, bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
+  bool process(int delay = 0, bool saveVideo = true, std::string outputFile = "Default", bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
 
   //save data in a file
-  void saveData(std::string outputFile = "output.dat");
+  //void saveData(std::string outputFile = "output.dat");
 
   //generates heatmap from the data
   void createHeatmap();

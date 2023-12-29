@@ -24,11 +24,35 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  if (argc == 1) { //default = open cam 0
+    Padel def(0);
+    def.process(0, false, "None");  //open camera, show videos, don't save videos, don't save data
+    return 0;
+  }
 
-  int camIndex = 0;
-  if (argc == 2)
-    camIndex = std::stoi(argv[1]);
+  // Check if the string contains a point
+  std::string input = argv[1];
 
+  //TO DO: second parameter is the matrix file
+
+  if (input.find_first_of('.') != std::string::npos) {
+    //the string contains a point -> video
+    Padel fil(input);
+    fil.calculateBackground();
+    fil.process(-1, true);  //open file, don't show videos, save videos, save data
+  } else {
+    //the string does not contain a point -> camera
+    try {
+      Padel cam(std::stoi(input));
+      cam.process(0, false, "None");  //open camera, show videos, don't save videos, don't save data
+    } 
+    catch (std::invalid_argument const &ex) {
+      std::cout << "Error while opening " << input << ". Did you forget the file extension?\n";
+      return -1;
+    }
+  }
+
+  /*
   //Padel t("videopadel3.mp4");
   Padel t(camIndex);
   //t.calculateBackground();
@@ -36,6 +60,7 @@ int main(int argc, char *argv[]) {
   //t.showBackground();
   //t.showTrackbars();
   t.process();
+  */
   
-  return 0;
+  return 0;    
 }
