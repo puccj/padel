@@ -30,14 +30,15 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // Check if the string contains a point
   std::string input = argv[1];
+  std::string param = "Default";
+  if (argc == 3)
+    param = argv[2];
 
-  //TO DO: second parameter is the matrix file
-
+  // Check if the string contains a point
   if (input.find_first_of('.') != std::string::npos) {
     //the string contains a point -> video
-    Padel fil(input);
+    Padel fil(input, param);
     fil.calculateBackground();
     fil.process(-1, true);  //open file, don't show videos, save videos, save data
   } else {

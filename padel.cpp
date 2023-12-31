@@ -17,31 +17,35 @@ void Padel::onMouse(int event, int x, int y, int flag, void *param) {
   }
 }
 
-Padel::Padel(std::string filename)
+Padel::Padel(std::string filename, std::string paramPath)
     : _cap{cv::VideoCapture(filename)},
       _fileOpened{true},
       _camname{filename.substr(0, filename.find_last_of('.'))}  // Remove the file extension
 {
   if (!_cap.isOpened()) {
-    throw std::runtime_error{"PADEL ERROR: could not open " + filename};
+    throw std::runtime_error{"PADEL ERROR 01: could not open " + filename};
     return;
   }
+  
+  if (paramPath == "Default")
+    paramPath = ".//parameters/" + filename + ".dat";
 
-  loadParam(".//parameters/" + filename + ".dat");
+  loadParam(paramPath);
 }
 
+
 Padel::Padel(int camIndex)
-  : _cap{cv::VideoCapture(camIndex)},
-    _fileOpened{false},
-    _camname{std::to_string(camIndex)}
+    : _cap{cv::VideoCapture(camIndex)},
+      _fileOpened{false},
+      _camname{std::to_string(camIndex)}
 {
   if (!_cap.isOpened()) {
-    throw std::runtime_error{"PADEL ERROR while opening camera " + std::to_string(camIndex)};
+    throw std::runtime_error{"PADEL ERROR 02 while opening camera " + std::to_string(camIndex)};
     return;
   }
   _cap.set(cv::CAP_PROP_FPS, 20);
 
-  loadParam(".//parameters/" + std::to_string(camIndex) + "-param.dat");
+  loadParam(".//parameters/" + std::to_string(camIndex) + ".dat");
 }
 
 void Padel::showTrackbars() {
@@ -97,7 +101,7 @@ void Padel::calculateBackground(double seconds, double weight) {
 bool Padel::loadBackground(std::string filename) {
   _background = cv::imread(filename);
   if (_background.empty()) {
-    std::cerr << "PADEL WARNING Could not load the background image " << filename << ". FGmask will be calculated without using a background \n";
+    std::cerr << "PADEL WARNING 99: Could not load the background image " << filename << ". FGmask will be calculated without using a background \n";
     return false;
   }
   return true;
@@ -105,7 +109,7 @@ bool Padel::loadBackground(std::string filename) {
 
 bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode mode, bool removeShadows) {
   if (outputFile == "Default")
-    outputFile = _camname + "-data.dat";
+    outputFile = "./data/ " + _camname + "-data.dat";
 
   if (delay == 0) {
     if (_fileOpened)
@@ -124,18 +128,18 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
   cv::Ptr<cv::BackgroundSubtractor> pBackSub; //BG subtractor
   
   if (_background.empty()) {
-    std::cout << "Debug: without BG\n";
+    //std::cout << "Debug: without BG\n";
     if (mode == bgSubMode::KNN)
       pBackSub = cv::createBackgroundSubtractorKNN();
     else if (mode == bgSubMode::MOG2)
       pBackSub = cv::createBackgroundSubtractorMOG2();
     else {
-      throw std::runtime_error{"PADEL ERROR: process was called without a BG and an unknown mode for calculation has been given."};
+      throw std::runtime_error{"PADEL ERROR 03: process was called without a BG and an unknown mode for calculation has been given."};
       return false;
     }
   }
   else {
-    std::cout << "Debug: With BG\n";
+    //std::cout << "Debug: With BG\n";
     cv::cvtColor(_background, bg, cv::COLOR_BGR2GRAY);
     bg.convertTo(bg, CV_8U);    //needed to confront it with frame
   }
@@ -147,9 +151,9 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
 
   _cap >> frame;
   //cv::VideoWriter wtrOriginal(_camname + "original.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
-  cv::VideoWriter wtrFrame(_camname + "-box.mp4", cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), true);
-  cv::VideoWriter wtrMask (_camname + "-BW.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), false);
-  cv::VideoWriter wtrField(_camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
+  cv::VideoWriter wtrFrame("./ToBeUploaded/" + _camname + "-box.mp4", cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), true);
+  cv::VideoWriter wtrMask ("./ToBeUploaded/" + _camname + "-BW.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), false);
+  cv::VideoWriter wtrField("./ToBeUploaded/" + _camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
 
 
   /////////// ----- Main loop ----- ///////////
