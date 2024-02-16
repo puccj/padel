@@ -29,15 +29,17 @@ Padel::Padel(std::string filename, std::string paramPath)
     throw std::runtime_error{"PADEL ERROR 01: could not open " + filename};
     return;
   }
+
+  std::replace(_camname.begin(), _camname.end(), '/', '-');
+  std::replace(_camname.begin(), _camname.end(), '\\', '-');
   
   if (paramPath == "Default")
-    paramPath = "./parameters/" + filename + ".dat";
-
+    paramPath = "./parameters/" + _camname + ".dat";
   loadParam(paramPath);
 }
 
 
-Padel::Padel(int camIndex)
+Padel::Padel(int camIndex, std::string paramPath)
     : _cap{cv::VideoCapture(camIndex)},
       _fileOpened{false},
       _camname{std::to_string(camIndex)},
@@ -49,7 +51,9 @@ Padel::Padel(int camIndex)
   }
   _cap.set(cv::CAP_PROP_FPS, 20);
 
-  loadParam(".//parameters/" + std::to_string(camIndex) + ".dat");
+  if (paramPath == "Default")
+    paramPath = "./parameters/" + _camname + ".dat";
+  loadParam(".//parameters/" + _camname + ".dat");
 }
 
 void Padel::showTrackbars() {

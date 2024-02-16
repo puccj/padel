@@ -31,8 +31,8 @@ class Padel
   /// @brief Open a video from a file
   /// @param filename Filename of the video to open
   /// @param paramPath Filepath containing the parameter of the camera. If the file does not exists, parameters will be re-calculated
-  Padel(std::string filename, std::string paramPath = "Default");
-  Padel(int camIndex);          //open a camera
+  Padel(std::string filename, std::string paramPath = "Default"); //open video file
+  Padel(int camIndex, std::string paramPath = "Default");         //open a camera
 
   void showTrackbars();
 
