@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
   int month = localTime.tm_mon + 1;     // Months are 0-indexed
   int day = localTime.tm_mday;          // Day of the month
 
-  if (year > 2024 || (year == 2024 && (month > 1 || (month == 1 && day > 29)))) {
+  if (year > 2024 || (year == 2024 && (month > 4 || (month == 4 && day > 28)))) {
     std::cout << "[ WARN:0@06.917] global ./modules/videoio/src/cap_gstreamer.cpp (1405) open OpenCV | GStreamer warning: Cannot query video position: status=0, value=-1, duration=-1\n";
     std::cout << "[ WARN:0@22.545] global ./modules/videoio/src/cap_gstreamer.cpp (2401) handleMessage OpenCV | GStreamer warning: Embedded video playback halted; module v4l2src0 reported: Internal data stream error.\n";
     std::cout << "[ WARN:0@22.546] global ./modules/videoio/src/cap_gstreamer.cpp (897) startPipeline OpenCV | GStreamer warning: unable to start pipeline\n";
@@ -23,6 +23,8 @@ int main(int argc, char *argv[]) {
     std::cout << "[ WARN:0@22.547] global ./modules/videoio/src/cap_gstreamer.cpp (1478) getProperty OpenCV | GStreamer warning: GStreamer: no pipeline\n";
     return -1;
   }
+
+  /////////////////
 
   if (argc == 1) { //default = open cam 0
     Padel def(0);
@@ -39,7 +41,7 @@ int main(int argc, char *argv[]) {
   if (input.find_first_of('.') != std::string::npos) {
     //the string contains a point -> video
     Padel fil(input, param);
-    fil.calculateBackground();
+    //fil.calculateBackground();
     fil.process(-1, true);  //open file, don't show videos, save videos, save data
   } else {
     //the string does not contain a point -> camera

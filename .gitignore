@@ -2,10 +2,9 @@ a.exe
 cam.cpp
 cam.h
 test
-videopadel1.mp4
-videopadel2.mp4
-videopadel3.mp4
 .vscode
 parameters
 ToBeUploaded
 data
+inputVideo
+padel_debug.cpp

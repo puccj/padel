@@ -15,15 +15,17 @@ class Padel
   int minAreaValue = 50;
   int consecutiveValue = 1;
   double learningRateValue = -1;
-  
+  double _maxVel = 8.33;  //maximum velocity a player can run (m/s)   //TO DO: probably to be removed
+
   enum class bgSubMode{KNN, MOG2};
 
   cv::VideoCapture _cap;
   bool _fileOpened;
   std::string _camname;
-  cv::Mat _perspMat; //perspective matrix
+  cv::Mat _perspMat;  //perspective matrix
   double _fps;
   cv::Mat _background;
+  cv::Point2f _lastPos[4];  //positions of the 4 player in the last frame
 
  public:
   /// @brief Open a video from a file
@@ -65,7 +67,7 @@ class Padel
  private:
   //Load parameters (perspective matrix and fps) from file if exists, calculate them otherwise
   void loadParam(std::string paramFile);
-  void calculatePerspMat(std::string filename);
+  bool calculatePerspMat(std::string filename);
   void calculateFPS();
 };
 

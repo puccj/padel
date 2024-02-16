@@ -1,9 +1,11 @@
 #include "padel.h"
+#include "padel-utils.hpp"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/video.hpp>
 
 #include <fstream>
+#include <algorithm>
 
 cv::Point2f Padel::mousePosition = {-1,-1};
 
@@ -20,7 +22,8 @@ void Padel::onMouse(int event, int x, int y, int flag, void *param) {
 Padel::Padel(std::string filename, std::string paramPath)
     : _cap{cv::VideoCapture(filename)},
       _fileOpened{true},
-      _camname{filename.substr(0, filename.find_last_of('.'))}  // Remove the file extension
+      _camname{filename.substr(0, filename.find_last_of('.'))},  // Remove the file extension
+      _lastPos{{5,10},{5,10},{5,10},{5,10}}
 {
   if (!_cap.isOpened()) {
     throw std::runtime_error{"PADEL ERROR 01: could not open " + filename};
@@ -28,7 +31,7 @@ Padel::Padel(std::string filename, std::string paramPath)
   }
   
   if (paramPath == "Default")
-    paramPath = ".//parameters/" + filename + ".dat";
+    paramPath = "./parameters/" + filename + ".dat";
 
   loadParam(paramPath);
 }
@@ -37,7 +40,8 @@ Padel::Padel(std::string filename, std::string paramPath)
 Padel::Padel(int camIndex)
     : _cap{cv::VideoCapture(camIndex)},
       _fileOpened{false},
-      _camname{std::to_string(camIndex)}
+      _camname{std::to_string(camIndex)},
+      _lastPos{{5,10},{5,10},{5,10},{5,10}}
 {
   if (!_cap.isOpened()) {
     throw std::runtime_error{"PADEL ERROR 02 while opening camera " + std::to_string(camIndex)};
@@ -156,7 +160,7 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
   cv::VideoWriter wtrField("./ToBeUploaded/" + _camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
 
 
-  /////////// ----- Main loop ----- ///////////
+  /////////// ----- Main loop (1 iteration per frame) ----- ///////////
   while (true) {
     time_t start, end;  //to know how long each frame take to be analyzed
     time(&start);
@@ -164,9 +168,13 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
     _cap >> frame;
     if (frame.empty()) {
       if (delay > 0)
-        std::cerr << "End of video\n";
+        std::cout << "End of video\n";
       break;
     }
+
+    //store founded points for this frame
+    int maxPoint = 8;   //maybe I'll change it
+    std::vector<cv::Point2f> thisPos;
 
     original = frame.clone(); //save original frame to create output video
 
@@ -217,17 +225,158 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
       cv::Point3f homogeneous; //= warp.inv() * point;
       cv::perspectiveTransform(cv::Mat(1, 1, CV_32FC2, &feet), cv::Mat(1, 1, CV_32FC2, &homogeneous), _perspMat);
       cv::Point2f result(homogeneous.x, homogeneous.y);  // Drop the z=1 to get out of homogeneous coordinates
-      result *= zoom;
+      //result is between (0,0) and (10,20)
+      result;
+
+      //Draw all points in the graphic and output all of them
+      circle(field, result*zoom+offset, 1, {185,185,185}, 3, cv::LINE_AA);
       if (outputFile != "None")
         fout << result << ' ';
 
-      //draw points in the graphic
-      //TO DO: draw only the best 4 ones
-      result.x += offset;
-      result.y += offset;
-      circle(field, result, 1, {255,0,255}, 3, cv::LINE_AA);
-      //circle(field, result, 1, {185,185,185}, 3, cv::LINE_AA);
+      //Calculate and draw with a different color only the best 4 ones
+      // 1. Don't add point if it's outside of field
+      if (result.x < 0 || result.x > 10 || result.y < 0 || result.y > 20) {
+        //std::cout << "Debug: point not added (" << result << ")\n";
+        continue;
+      }
+
+      // 2. Don't add point if it's too far from the previous 4 ones
+      // bool near = false;
+      // for (int i = 0; i < 4; ++i) {
+      //   if (cv::norm(result - _lastPos[i]) < 5) {
+      //     near = true;
+      //     break;
+      //   }
+      // }
+      // if (!near) {
+      //   continue;
+      // }
+
+      thisPos.push_back(result);
+      //std::cout << "Debug: " << thisPos.size() << ". Point " << result << "added\n";
     }
+    
+    // std::cout << "\nDebug: old points: ";
+    // for (int i = 0; i < 4; ++i)
+    //   std::cout << _lastPos[i] << "  -  ";
+    // std::cout << "\nDebug: new points : ";
+    // for (auto p : thisPos)
+    //   std::cout << p << "  -  ";
+    // std::cout << '\n';
+
+    // //Degug: draw old points:
+    // for (int i = 0; i < 4; ++i)
+    //   cv::circle(field, _lastPos[i]*zoom+offset, 1, {0,0,0}, 3, cv::LINE_AA);
+
+
+    auto nPoints = thisPos.size();
+    // 3. If the points are enough
+    if (nPoints >= 4 && nPoints < maxPoint) {  //(This works even if the detected points are equal to 4)
+      //consider all possible combinations of 4 points.
+      auto combinations = generateCombinations(thisPos, 4);
+      double minDistance = 99999;
+      //cv::Point2f temp[4];  //TO DO: maybe I need this temp if I want to keep thisPos to do something  (see C1, C2)
+
+      //c is a single combination (a vector of 4 points)
+      for (auto c : combinations) {   //for each combination of 4 points..
+        //..calculate every possible pair (permutation among the elements) and take the min distance
+
+        do {
+          //get the sum of distance between old (_lastPos) and current (c) 4 points
+          double tot = 0;
+          for (int i = 0; i < 4; ++i) {
+            /*
+            double d = cv::norm(_lastPos[i] - c[i]);
+            double d2 = distance(_lastPos[i], c[i]);
+            double d3 = distance(c[i], _lastPos[i]);
+
+            if (d - d2 > 0.001 || d2 - d3 > 0.001 || d - d3 > 0.001)
+              std::cout << "AAAAAAAAAAA  d = " << d << "  -  d2 = " << d2 << '\n';
+            */
+
+            tot += cv::norm(_lastPos[i] - c[i]);
+          }
+
+          //if a smaller distance is found, save it and the 4 points (keeping the order!)
+          if (tot < minDistance) {
+            minDistance = tot;
+            for (int i = 0; i < 4; ++i) {
+              thisPos[i] = c[i];
+              //temp[i] = c[i];   // (C1)
+            }
+          }
+
+        } while (std::next_permutation(c.begin(), c.end(), comparePoints<cv::Point2f>));
+      }
+
+      // Update last points
+      for (int i = 0; i < 4; ++i)
+        _lastPos[i] = thisPos[i];
+
+      // (C2) TO DO: if 2 points are very near (define how much) and there are more than 4 points and using the mean between these 2 points I find a smaller distance,
+      //then it probably means that a point/person has been split in 2 in this particular frame. I can use the mean point between the 2 as the real value.
+    }
+    else if (nPoints > 0 && nPoints < 4) {
+      // 4. If there are less then 4 point, keep 1 (or more) point from _lastPos. Which one(s)? The farther(s) from the 3 (or more) points in thisPos
+      
+      // 4a. nPoints is the number of found points. Check which 'nPoints' points out of the 4 _lastPos are closer to found points.
+      
+      // auto combinations = generateCombinations(std::vector<cv::Point2f>(_lastPos, _lastPos + 4), nPoints);
+      auto combinations = generateCombinations(std::vector<int>{0,1,2,3}, nPoints);
+      double minDistance = 99999;
+
+      int indexes[nPoints]; //will contain the indexes of the nPoints _lastPos which are closer to the found ones
+
+      //c is a single combination (a vector of nPoints indexes)
+      for (auto c : combinations) {   //for each combination of 4 points..
+        //..calculate every possible pair (permutation among the elements) and take the min distance
+
+        do {
+          //get the sum of distance between the found (thisPos) and selected (c) nPoints points
+          double tot = 0;
+          for (int i = 0; i < nPoints; ++i) {
+            tot += cv::norm(thisPos[i] - _lastPos[c[i]]);
+          }
+
+          //if a smaller distance is found, save it and the points indexes (keeping the order!)
+          if (tot < minDistance) {
+            minDistance = tot;
+            for (int i = 0; i < 4; ++i) {
+              indexes[i] = c[i];
+              //temp[i] = c[i];   // (C1)
+            }
+          }
+
+        } while (std::next_permutation(c.begin(), c.end()));
+      }
+
+      // 4b. Then, update (set to thisPos) those and keep (set to _lastPos) the others
+      
+      // Update last points
+      for (int i = 0; i < nPoints; ++i) {
+        _lastPos[indexes[i]] = thisPos[i];
+      }
+      //just a temp solution
+      // while(thisPos.size() < 4) {
+      //   std::cout << "Few points, adding another point\n";
+      //   thisPos.push_back({5,10});
+      // }
+      //end of temp solution
+
+    } //end cases on number of points
+
+    // 6. Draw selected 4 points (with different color)
+    cv::circle(field, _lastPos[0]*zoom+offset, 1, {0, 0, 255}, 3, cv::LINE_AA);
+    cv::circle(field, _lastPos[1]*zoom+offset, 1, {255, 0, 0}, 3, cv::LINE_AA);
+    cv::circle(field, _lastPos[2]*zoom+offset, 1, {0, 255, 0}, 3, cv::LINE_AA);
+    cv::circle(field, _lastPos[3]*zoom+offset, 1, {255, 255, 0}, 3, cv::LINE_AA);
+      
+      
+      /* Other thing to try: color.
+       * 
+       *
+       */
+
 
     //invert the fgMask before saving and showing (Marco likes it that way)
     cv::bitwise_not(fgMask, fgMask);
@@ -255,7 +404,8 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
     //New frame -> new line on file
     if (outputFile != "None")
       fout << '\n';
-  }
+
+  } //end of main loop
   
   wtrFrame.release();
   wtrField.release();
@@ -270,7 +420,8 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
 
 // -- Private methods -- //
 
-void Padel::loadParam(std::string paramFile) {
+void Padel::loadParam(std::string paramFile)
+{
   std::fstream fin(paramFile, std::ios::in);
   if (fin.is_open()) {    
     _perspMat = cv::Mat(3, 3, CV_64FC1);
@@ -298,7 +449,7 @@ void Padel::loadParam(std::string paramFile) {
   }
 }
 
-void Padel::calculatePerspMat(std::string filename) {
+bool Padel::calculatePerspMat(std::string filename) {
   std::string winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm.";
   cv::namedWindow(winName);
   cv::setMouseCallback(winName, onMouse);
@@ -306,9 +457,9 @@ void Padel::calculatePerspMat(std::string filename) {
   cv::Point2f angles[4]; //angles of the field
 
   if (_fileOpened)
-    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm.\n";
+    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'n' to show another (random) frame. Press 'space' to confirm. Press 'q' to abort\n";
   else
-    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'space' to confirm.\n";
+    std::cout << "--- Calculating perspective ---\nClick on the 4 indicated points. Press 'space' to confirm. Press 'q to abort\n";
 
   std::srand(time(0));
   int totalFrame = _cap.get(cv::CAP_PROP_FRAME_COUNT) -2;
@@ -357,6 +508,8 @@ void Padel::calculatePerspMat(std::string filename) {
 
       //Instead I'll use WASD to move the cross
       key = cv::waitKey(5);
+      if (key == 'q')
+        throw std::runtime_error{"PADEL NOTE: execution aborted by user."};
 
       if (count > 0) {
         //move the last cross
@@ -413,12 +566,14 @@ void Padel::calculatePerspMat(std::string filename) {
   cv::Point2f rect[4] = { {0,0}, {10,0}, {10,17}, {0,17} };
   _perspMat = cv::getPerspectiveTransform(angles, rect);
 
+  //reset video back to the beginning
   if (_fileOpened)
     _cap.set(cv::CAP_PROP_POS_FRAMES, 0);
+  
+  return true;
 }
 
-void Padel::calculateFPS()
-{
+void Padel::calculateFPS() {
   _fps = _cap.get(cv::CAP_PROP_FPS);
 
   if (_fps != 0)
