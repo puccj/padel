@@ -53,7 +53,7 @@ Padel::Padel(int camIndex, std::string paramPath)
 
   if (paramPath == "Default")
     paramPath = "./parameters/" + _camname + ".dat";
-  loadParam(".//parameters/" + _camname + ".dat");
+  loadParam(paramPath);
 }
 
 void Padel::showTrackbars() {
@@ -115,9 +115,11 @@ bool Padel::loadBackground(std::string filename) {
   return true;
 }
 
-bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode mode, bool removeShadows) {
-  if (outputFile == "Default")
-    outputFile = "./data/ " + _camname + "-data.dat";
+bool Padel::process(int delay, std::string outputVideo, std::string outputData, bgSubMode mode, bool removeShadows) {
+  if (outputVideo == "Default")
+    outputVideo = "./ToBeUploaded/";
+  if (outputData == "Default")
+    outputData = "./data/ " + _camname + ".dat";
 
   if (delay == 0) {
     if (_fileOpened)
@@ -154,14 +156,14 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
   
   //Objects to save data and videos
   std::fstream fout;
-  if (outputFile != "None")
-    fout.open(outputFile, std::ios::out);
+  if (outputData != "None")
+    fout.open(outputData, std::ios::out);
 
   _cap >> frame;
   //cv::VideoWriter wtrOriginal(_camname + "original.avi", cv::VideoWriter::fourcc('M','J','P','G'), _fps, frame.size(), true);
-  cv::VideoWriter wtrFrame("./ToBeUploaded/" + _camname + "-box.mp4", cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), true);
-  cv::VideoWriter wtrMask ("./ToBeUploaded/" + _camname + "-BW.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), false);
-  cv::VideoWriter wtrField("./ToBeUploaded/" + _camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
+  cv::VideoWriter wtrFrame(outputVideo + _camname + "-box.mp4", cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), true);
+  cv::VideoWriter wtrMask (outputVideo + _camname + "-BW.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, frame.size(), false);
+  cv::VideoWriter wtrField(outputVideo + _camname + "-2D.mp4",  cv::VideoWriter::fourcc('m','p','4','v'), _fps, field.size(), true);
 
 
   /////////// ----- Main loop (1 iteration per frame) ----- ///////////
@@ -234,7 +236,7 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
 
       //Draw all points in the graphic and output all of them
       circle(field, result*zoom+offset, 1, {185,185,185}, 3, cv::LINE_AA);
-      if (outputFile != "None")
+      if (outputData != "None")
         fout << result << ' ';
 
       //Calculate and draw with a different color only the best 4 ones
@@ -385,7 +387,7 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
     //invert the fgMask before saving and showing (Marco likes it that way)
     cv::bitwise_not(fgMask, fgMask);
 
-    if (saveVideo) {
+    if (outputVideo != "None") {
       //Save videos
       wtrFrame.write(frame);
       wtrField.write(field);
@@ -406,7 +408,7 @@ bool Padel::process(int delay, bool saveVideo, std::string outputFile, bgSubMode
     }
     
     //New frame -> new line on file
-    if (outputFile != "None")
+    if (outputData != "None")
       fout << '\n';
 
   } //end of main loop

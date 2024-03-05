@@ -50,13 +50,13 @@ class Padel
 
   /// @brief Analyze video stream producing data of player positions and/or show and/or save videos: boxed player, FGmask and 2D field graphics.
   /// @param delay Delay between each shown frame. If 0 (default), the video is shown with original fps. If negative the video is not shown at all.
-  /// @param saveVideo Whether or not to save videos as videofiles.
-  /// @param outputFile Filename where to save data. If set to "None", no output data will be produced.
+  /// @param outputVideo Path where to save video. If set to "None", no output video will be produced
+  /// @param outputData Filename where to save data. If set to "None", no output data will be produced.
   /// If set to "Default" (default), the video is saved as "<camIndex>-data.dat" or "<filename>-data.dat".
   /// @param mode Mode use to get the foreground Mask. Only used if background is not pre-set
   /// @param removeShadows Whether to consider shadows to create the box. Only used if background is not pre-set
   /// @return false if an error occurs
-  bool process(int delay = 0, bool saveVideo = true, std::string outputFile = "Default", bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
+  bool process(int delay = 0, std::string outputVideo = "Default", std::string outputData = "Default", bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
 
   //save data in a file
   //void saveData(std::string outputFile = "output.dat");
