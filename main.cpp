@@ -74,6 +74,7 @@ int main(int argc, char *argv[]) {
         if (std::string(argv[1]).find_first_of('.') != std::string::npos) {
           inputVideo = argv[1];
           cameraOpen = false;
+          showVideo = false;
         }
         else {
           camera = std::stoi(argv[1]);
@@ -186,7 +187,7 @@ int main(int argc, char *argv[]) {
     // std::cout << "output = " << output << '\n';
     // std::cout << "data = " << data << '\n';
   }
-  catch (std::invalid_argument const &ex) {
+  catch (std::invalid_argument const &e) {
     std::cout << "Error while opening camera (index is not a number). If you intended to open a video, remember to include the file extension\n";
     return -1;
   }

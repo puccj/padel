@@ -15,7 +15,6 @@ class Padel
   int minAreaValue = 50;
   int consecutiveValue = 1;
   double learningRateValue = -1;
-  double _maxVel = 8.33;  //maximum velocity a player can run (m/s)   //TO DO: probably to be removed
 
   enum class bgSubMode{KNN, MOG2};
 
@@ -66,9 +65,18 @@ class Padel
 
  private:
   //Load parameters (perspective matrix and fps) from file if exists, calculate them otherwise
-  void loadParam(std::string paramFile);
-  bool calculatePerspMat(std::string filename);
+  void loadParam(const std::string& paramFile);
+  bool calculatePerspMat(const std::string& filename);
   void calculateFPS();
+  
+  //draw a 2D scheme of a padel field
+  void draw2DField(cv::Mat mat, int offset, int zoom);
+  
+  //Find the best n points among a vector, based on their proximity to given n points
+  std::vector<cv::Point2f> findBest_Position(const std::vector<cv::Point2f>& points, const std::vector<cv::Point2f>& given);
+
+  //find the best n  points among a vector, based on their content color
+  void findBest_Color();
 };
 
 
