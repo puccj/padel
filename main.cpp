@@ -19,34 +19,6 @@ bool stob(std::string input) {
 }
 
 int main(int argc, char *argv[]) {
-
-  std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  std::tm localTime = *std::localtime(&currentTime);
-
-  // Extract date components
-  int year = localTime.tm_year + 1900;  // Years since 1900
-  int month = localTime.tm_mon + 1;     // Months are 0-indexed
-  int day = localTime.tm_mday;          // Day of the month
-
-  if (year > 2024 || (year == 2024 && (month > 4 || (month == 4 && day > 28)))) {
-    std::cout << "[ WARN:0@06.917] global ./modules/videoio/src/cap_gstreamer.cpp (1405) open OpenCV | GStreamer warning: Cannot query video position: status=0, value=-1, duration=-1\n";
-    std::cout << "[ WARN:0@22.545] global ./modules/videoio/src/cap_gstreamer.cpp (2401) handleMessage OpenCV | GStreamer warning: Embedded video playback halted; module v4l2src0 reported: Internal data stream error.\n";
-    std::cout << "[ WARN:0@22.546] global ./modules/videoio/src/cap_gstreamer.cpp (897) startPipeline OpenCV | GStreamer warning: unable to start pipeline\n";
-    std::cout << "[ WARN:0@22.547] global ./modules/videoio/src/cap_gstreamer.cpp (1478) getProperty OpenCV | GStreamer warning: GStreamer: no pipeline\n";
-    std::cout << "[ WARN:0@22.547] global ./modules/videoio/src/cap_gstreamer.cpp (1478) getProperty OpenCV | GStreamer warning: GStreamer: no pipeline\n";
-    std::cout << "[ WARN:0@22.547] global ./modules/videoio/src/cap_gstreamer.cpp (1478) getProperty OpenCV | GStreamer warning: GStreamer: no pipeline\n";
-    return -1;
-  }
-
-  /////////////////
-
-  // if (argc == 1) { //default = open cam 0
-  //   Padel def(0);
-  //   def.process(0, false, "None");  //open camera, show videos, don't save videos, don't save data    // TO DO: change that into save when 'S' pressed.
-  //   return 0;
-  // }
-
   std::string inputVideo;
   int camera = 0;
   bool cameraOpen; //true for cameras, false for input videos
@@ -54,6 +26,7 @@ int main(int argc, char *argv[]) {
   bool showVideo = true;
   std::string output = "Default";
   std::string data = "Default";
+  int timeLimit = 35;  //in minutes
 
   //check if arguments start with '-'
   bool optionPresent = false;
@@ -109,16 +82,18 @@ int main(int argc, char *argv[]) {
         std::cout << "  padel-0.2.0 <camIndex> <paramFile>                          OR\n";
         std::cout << "  padel-0.2.0 [options]\n\n";
         std::cout << "Options:\n";
-        std::cout << "  -h, --help \t\t Show this help page\n";
-        std::cout << "  -f, --file, <path> \t Path to the input file path to be processed.\n";
+        std::cout << "  -h, --help             Show this help page\n";
+        std::cout << "  -f, --file, <path>     Path to the input file path to be processed.\n";
         std::cout << "  -c, --camera, <index>  Index of the camera device to stream. Default: 0\n";
-        std::cout << "  -p, --param, <path> \t Path to the parameter file to use/create (if non-existent).\n";
-        std::cout << "                      \t   Default: ./parameters/<inputPath>.dat\n";
-        std::cout << "  --show <true/false> \t Whether to show video outputs or not. Default: false for videos, true for cameras\n";
-        std::cout << "  --output <dir> \t Directory where to save video outputs. Use 'None' to avoid saving them.\n";
-        std::cout << "                 \t   Default: ./ToBeUploaded/\n";
-        std::cout << "  --data <dir> \t\t Directory where to save raw data. Use 'None' to avoid saving them.\n";
-        std::cout << "               \t\t   Default: ./data/<inputPath>.dat\n\n";
+        std::cout << "  -p, --param, <path>    Path to the parameter file to use/create (if non-existent).\n";
+        std::cout << "                           Default: ./parameters/<inputPath>.dat\n";
+        std::cout << "  -l, --limit <integer>  Time limit after which the stream will be stopped and the data/video saved.\n";
+        std::cout << "                           Use a 0 to stop the execution only when 'q' is pressed. Default: 35\n";
+        std::cout << "  --show <true/false>    Whether to show video outputs or not. Default: false for videos, true for cameras\n";
+        std::cout << "  --output <dir>         Directory where to save video outputs. Use 'None' to avoid saving them.\n";
+        std::cout << "                           Default: ./ToBeUploaded/\n";
+        std::cout << "  --data <dir>           Directory where to save raw data. Use 'None' to avoid saving them.\n";
+        std::cout << "                           Default: ./data/\n\n";
 
         std::cout << "Notes:\n";
         std::cout << "  In order to ensure the corrent video and data saving, make sure that their respectively output folder(s)\n";
@@ -129,18 +104,16 @@ int main(int argc, char *argv[]) {
       }
 
       char* filename = getCmdOption(argv, argv+argc, "-f");
-      if (!filename) {
+      if (!filename)
         filename = getCmdOption(argv, argv+argc, "--file");
-      }
       if (filename) {
         cameraOpen == false;
         inputVideo = filename;
       }
 
       char* cam_c = getCmdOption(argv, argv+argc, "-c");
-      if (!cam_c) {
+      if (!cam_c)
         cam_c = getCmdOption(argv, argv+argc, "--camera");
-      }
       if (cam_c) {
         cameraOpen = true;
         camera = std::stoi(cam_c);
@@ -157,11 +130,16 @@ int main(int argc, char *argv[]) {
       }
 
       char* param_c = getCmdOption(argv, argv+argc, "-p");
-      if (!param_c) {
+      if (!param_c)
         param_c = getCmdOption(argv, argv+argc, "--param");
-      }
       if (param_c)
         param = param_c;
+
+      char* limit_c = getCmdOption(argv, argv+argc, "-l");
+      if (!limit_c)
+        char* limit_c = getCmdOption(argv, argv+argc, "--limit");
+      if (limit_c)
+        timeLimit = std::stoi(limit_c);
     
       char* show_c = getCmdOption(argv, argv+argc, "--show");
       if (show_c)
@@ -188,7 +166,7 @@ int main(int argc, char *argv[]) {
     // std::cout << "data = " << data << '\n';
   }
   catch (std::invalid_argument const &e) {
-    std::cout << "Error while opening camera (index is not a number). If you intended to open a video, remember to include the file extension\n";
+    std::cout << "Error while opening camera (index is not a number). If you intended to open a video, please remember to include the file extension\n";
     return -1;
   }
 
@@ -198,11 +176,11 @@ int main(int argc, char *argv[]) {
 
   if (cameraOpen) {
     Padel cam(camera, param);
-    cam.process(delay, output, data);
+    cam.process(delay, output, data, timeLimit);
   }
   else {
     Padel fil(inputVideo, param);
-    fil.process(delay, output, data);
+    fil.process(delay, output, data, timeLimit);
   }
 
   /*

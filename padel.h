@@ -24,7 +24,9 @@ class Padel
   cv::Mat _perspMat;  //perspective matrix
   double _fps;
   cv::Mat _background;
-  cv::Point2f _lastPos[4];  //positions of the 4 player in the last frame
+  cv::Point2f _lastPos[4];    //positions of the 4 player in the last frame
+  //cv::Scalar _lastColors[4];  //colors of the 4 players in the last frame
+  cv::Scalar _defaultColors[4];  //default color to use in the analysis
 
  public:
   /// @brief Open a video from a file
@@ -52,10 +54,13 @@ class Padel
   /// @param outputVideo Path where to save video. If set to "None", no output video will be produced
   /// @param outputData Filename where to save data. If set to "None", no output data will be produced.
   /// If set to "Default" (default), the video is saved as "<camIndex>-data.dat" or "<filename>-data.dat".
+  /// @param timeLimit Time limit (in minutes) after which the execution will be stopped and the data/video saved.
+  /// 0 (default) is a special value that indicate no time limit and the execution will procede until 'q' is pressed or until the end of video.
   /// @param mode Mode use to get the foreground Mask. Only used if background is not pre-set
   /// @param removeShadows Whether to consider shadows to create the box. Only used if background is not pre-set
   /// @return false if an error occurs
-  bool process(int delay = 0, std::string outputVideo = "Default", std::string outputData = "Default", bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
+  bool process(int delay = 0, std::string outputVideo = "Default", std::string outputData = "Default",
+               int timeLimit = 0, bgSubMode mode = bgSubMode::KNN, bool removeShadows = true);
 
   //save data in a file
   //void saveData(std::string outputFile = "output.dat");
@@ -69,14 +74,12 @@ class Padel
   bool calculatePerspMat(const std::string& filename);
   void calculateFPS();
   
-  //draw a 2D scheme of a padel field
-  void draw2DField(cv::Mat mat, int offset, int zoom);
-  
   //Find the best n points among a vector, based on their proximity to given n points
   std::vector<cv::Point2f> findBest_Position(const std::vector<cv::Point2f>& points, const std::vector<cv::Point2f>& given);
 
-  //find the best n  points among a vector, based on their content color
-  void findBest_Color();
+  //Find the best n points among a vector, based on their proximity to given n points.
+  // Return their indexes among 'points' vector. If an index is negative, it means that that points needs to be taken from 'given'
+  std::vector<int> findBest_Color(const std::vector<cv::Scalar>& points, const std::vector<cv::Scalar> given);
 };
 
 
