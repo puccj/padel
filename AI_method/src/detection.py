@@ -4,6 +4,7 @@ import cv2
 import torch
 import torchvision
 import numpy as np
+from ultralytics import YOLO
 from sort import Sort
 from utils import get_video_properties, get_dtype
 
@@ -101,14 +102,78 @@ def sections_intersect(sec1, sec2):
     if sec1[0] <= sec2[0] <= sec1[1] or sec2[0] <= sec1[0] <= sec2[1]:
         return True
     return False
-    
-if __name__ == "__main__":
-    video = cv2.VideoCapture('../videos/vid.mp4')
+
+def yolo_tracking(input, output):
+    from collections import defaultdict
+
+    # Load the YOLOv8 model
+    model = YOLO('yolov8n.pt')
+
+    # Open the video file
+    video_path = input
+    cap = cv2.VideoCapture(video_path)
+    fps, length, v_width, v_height = get_video_properties(cap)
+    # Output videos writer
+    out = cv2.VideoWriter(output,
+                          cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), fps, (v_width, v_height))
+    # Store the track history
+    track_history = defaultdict(lambda: [])
+    frame_i = 0
+    # Loop through the video frames
+    while cap.isOpened():
+        # Read a frame from the video
+        success, frame = cap.read()
+        frame_i += 1
+
+        if success:
+            print ("processing frame: ", frame_i)
+            # Run YOLOv8 tracking on the frame, persisting tracks between frames
+            results = model.track(frame, persist=True)
+
+            # Get the boxes and track IDs
+            boxes = results[0].boxes.xywh.cpu()
+            track_ids = results[0].boxes.id.int().cpu().tolist()
+
+            # TODO - assign 4 players to self, then track them
+            # TODO - if new player appears, and boxes > 4, assign it to the player with the closest box/ closest color
+
+            # Visualize the results on the frame
+            annotated_frame = results[0].plot()
+
+            # Plot the tracks
+            for box, track_id in zip(boxes, track_ids):
+                x, y, w, h = box
+                track = track_history[track_id]
+                track.append((float(x), float(y)))  # x, y center point
+                if len(track) > 30:  # retain 90 tracks for 90 frames
+                    track.pop(0)
+
+                # Draw the tracking lines
+                points = np.hstack(track).astype(np.int32).reshape((-1, 1, 2))
+                cv2.polylines(annotated_frame, [points], isClosed=False, color=(230, 230, 230), thickness=10)
+
+            out.write(annotated_frame)
+            # Display the annotated frame
+            cv2.imshow("YOLOv8 Tracking", annotated_frame)
+
+            # Break the loop if 'q' is pressed
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+        else:
+            # Break the loop if the end of the video is reached
+            break
+    # Release the video capture object and close the display window
+    out.release()
+    cap.release()
+    cv2.destroyAllWindows()
+
+def model_tracking(input, output):
+    video = cv2.VideoCapture(input)
     # get videos properties
     fps, length, v_width, v_height = get_video_properties(video)
     print(length)
     # Output videos writer
-    out = cv2.VideoWriter('output.avi',
+    out = cv2.VideoWriter(output,
                           cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), fps, (v_width, v_height))
     dtype = get_dtype()
     model = DetectionModel(dtype)
@@ -137,7 +202,6 @@ if __name__ == "__main__":
                 else:
                     model.persons_boxes[int(box[4])] = [box[:4]]
                     model.persons_first_appearance[int(box[4])] = frame_i
-                
             out.write(frame)
             #cv2.imshow('df', frame)
             #if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -166,80 +230,10 @@ if __name__ == "__main__":
     print(model.persons_first_appearance)
     persons_sections = {key: [val, val + len(model.persons_boxes[key])] for key, val in model.persons_first_appearance.items()}
     print(persons_sections)
-
-    # detections = []
-
-    # while len(dists) > 0:
-    #     max_key = max(dists.items(), key=operator.itemgetter(1))[0]
-    #     max_sec = persons_sections[max_key].copy()
-    #     detections.append(max_key)
-    #     persons_sections.pop(max_key)
-    #     dists.pop(max_key)
-    #     for key, sec in persons_sections.items():
-    #         if sections_intersect(max_sec, sec):
-    #             if key in dists.keys():
-    #                 dists.pop(key)
-    # detections = sorted(detections)
-    # print(detections)
-
-    # boxes = []
-    # for person in detections:
-    #     start = model.persons_first_appearance[person]
-    #     missing = start - 1 - len(boxes)
-    #     boxes.extend([None] * missing)
-    #     boxes.extend(model.persons_boxes[person])
-
-
-
-    # detections = dists.keys()
-    # boxes = {}
-    # for person in detections:
-    #     boxes[person] = []
-    #     start = model.persons_first_appearance[person]
-    #     missing = start - 1 - len(boxes[person])
-    #     boxes[person].extend([None] * missing)
-    #     boxes[person].extend(model.persons_boxes[person])
-
-    # video = cv2.VideoCapture('../videos/vid.mp4')
-    # # get videos properties
-    # fps, length, v_width, v_height = get_video_properties(video)
-
-    # # Output videos writer
-    # out = cv2.VideoWriter('output.avi',
-    #                       cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), fps, (v_width, v_height))
-
-
-    # frame_i = 0
-    # while True:
-    #     ret, frame = video.read()
-    #     frame_i += 1
-    #     if ret:
-    #         for box in boxes.values():
-    #             if frame_i <= len(box):
-    #                 box = box[frame_i - 1]
-    #             else:
-    #                 box = None
-    #             if box is not None and box[0] is not None:
-    #                 cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), [255, 0, 255], 2)            
-    #             cv2.imshow('df', frame)
-    #             if cv2.waitKey(1) & 0xFF == ord('q'):
-    #                 cv2.destroyAllWindows()
-    #         out.write(frame)
-
-    #         # if frame_i <= len(boxes):
-    #         #     box = boxes[frame_i - 1]
-    #         # else:
-    #         #     box = None
-    #         # if box is not None and box[0] is not None:
-    #         #     print(box)
-    #         #     cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), [255, 0, 255], 2)
-            
-    #         # cv2.imshow('df', frame)
-    #         # if cv2.waitKey(1) & 0xFF == ord('q'):
-    #         #     cv2.destroyAllWindows()
-    #         # out.write(frame)
-    #     else:
-    #         break
-    # video.release()
-    # out.release()
-    # cv2.destroyAllWindows()
+    
+if __name__ == "__main__":
+    input = "../videos/videopadel2.mp4"
+    output = "../videos/vid_output.avi"
+    #yolo_tracking(input)
+    model_tracking(input, output)
+    
