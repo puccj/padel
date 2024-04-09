@@ -58,6 +58,7 @@ int main(int argc, char *argv[]) {
         if (std::string(argv[1]).find_first_of('.') != std::string::npos) {
           inputVideo = argv[1];
           cameraOpen = false;
+          showVideo = false;
         }
         else {
           camera = std::stoi(argv[1]);
@@ -73,14 +74,14 @@ int main(int argc, char *argv[]) {
           std::find(argv, argv+argc, std::string("--help")) != argv+argc) 
       {
         //Print help message
-        std::cout << "\n--Padel 0.2.0--\n\n";
+        std::cout << "\n--Padel 0.3.0--\n\n";
         std::cout << "Usage:\n";
-        std::cout << "  padel-0.2.0  (open default cam 0 with default parameters)   OR\n";
-        std::cout << "  padel-0.2.0 <inputFile>                                     OR\n";
-        std::cout << "  padel-0.2.0 <camIndex>                                      OR\n";
-        std::cout << "  padel-0.2.0 <inputFile> <paramFile>                         OR\n";
-        std::cout << "  padel-0.2.0 <camIndex> <paramFile>                          OR\n";
-        std::cout << "  padel-0.2.0 [options]\n\n";
+        std::cout << "  padel-0.3.0  (open default cam 0 with default parameters)   OR\n";
+        std::cout << "  padel-0.3.0 <inputFile>                                     OR\n";
+        std::cout << "  padel-0.3.0 <camIndex>                                      OR\n";
+        std::cout << "  padel-0.3.0 <inputFile> <paramFile>                         OR\n";
+        std::cout << "  padel-0.3.0 <camIndex> <paramFile>                          OR\n";
+        std::cout << "  padel-0.3.0 [options]\n\n";
         std::cout << "Options:\n";
         std::cout << "  -h, --help             Show this help page\n";
         std::cout << "  -f, --file, <path>     Path to the input file path to be processed.\n";
@@ -107,7 +108,7 @@ int main(int argc, char *argv[]) {
       if (!filename)
         filename = getCmdOption(argv, argv+argc, "--file");
       if (filename) {
-        cameraOpen == false;
+        cameraOpen = false;
         inputVideo = filename;
       }
 

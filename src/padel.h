@@ -71,7 +71,7 @@ class Padel
  private:
   //Load parameters (perspective matrix and fps) from file if exists, calculate them otherwise
   void loadParam(const std::string& paramFile);
-  bool calculatePerspMat(const std::string& filename);
+  bool calculatePerspMat();
   void calculateFPS();
   
   //Find the best n points among a vector, based on their proximity to given n points
