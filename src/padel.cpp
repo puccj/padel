@@ -261,10 +261,7 @@ bool Padel::process(int delay, std::string outputVideo, std::string outputData, 
       //Calculate the predominant color of the current roi
       cv::Mat Lab;
       cv::cvtColor(original, Lab, cv::COLOR_BGR2Lab);
-<<<<<<< HEAD:padel.cpp
-=======
 
->>>>>>> ef3a57a4309ec895a80ee2a7a2820f9ddf888c78:src/padel.cpp
       // Option A: just use the color in the upper center
       cv::Point2f body = {(float)(r.x + r.width/2.), (float)(r.y + r.height/4.)};
       cv::circle(frame, body, 1, {0,255,0}, 3, cv::LINE_AA);
