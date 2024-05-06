@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
       if (!filename)
         filename = getCmdOption(argv, argv+argc, "--file");
       if (filename) {
-        cameraOpen == false;
+        cameraOpen = false;
         inputVideo = filename;
       }
 
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
 
       char* limit_c = getCmdOption(argv, argv+argc, "-l");
       if (!limit_c)
-        char* limit_c = getCmdOption(argv, argv+argc, "--limit");
+        limit_c = getCmdOption(argv, argv+argc, "--limit");
       if (limit_c)
         timeLimit = std::stoi(limit_c);
     

@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <cmath>
+#include <iostream>
+
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
@@ -193,28 +195,28 @@ cv::Scalar medianColor(const cv::Mat& image) {
 
   std::cout << "Debug: channel = " << image.channels() << '\n';
 
-  /*
-  // Check the data type of the image
-  int imageType = image.type();
 
-  // Interpret the data type
-  int depth = imageType & CV_MAT_DEPTH_MASK;
-  int Nchannels = 1 + (imageType >> CV_CN_SHIFT);
+  // // Check the data type of the image
+  // int imageType = image.type();
 
-  // Print the information
-  std::cout << "Image Depth: ";
-  switch (depth) {
-    case CV_8U: std::cout << "8-bit unsigned"; break;
-    case CV_8S: std::cout << "8-bit signed"; break;
-    case CV_16U: std::cout << "16-bit unsigned"; break;
-    case CV_16S: std::cout << "16-bit signed"; break;
-    case CV_32S: std::cout << "32-bit signed"; break;
-    case CV_32F: std::cout << "32-bit float"; break;
-    case CV_64F: std::cout << "64-bit float"; break;
-    default: std::cout << "Unknown depth"; break;
-  }
-  std::cout << ", Channels: " << Nchannels << std::endl;
-  ///
+  // // Interpret the data type
+  // int depth = imageType & CV_MAT_DEPTH_MASK;
+  // int Nchannels = 1 + (imageType >> CV_CN_SHIFT);
+
+  // // Print the information
+  // std::cout << "Image Depth: ";
+  // switch (depth) {
+  //   case CV_8U: std::cout << "8-bit unsigned"; break;
+  //   case CV_8S: std::cout << "8-bit signed"; break;
+  //   case CV_16U: std::cout << "16-bit unsigned"; break;
+  //   case CV_16S: std::cout << "16-bit signed"; break;
+  //   case CV_32S: std::cout << "32-bit signed"; break;
+  //   case CV_32F: std::cout << "32-bit float"; break;
+  //   case CV_64F: std::cout << "64-bit float"; break;
+  //   default: std::cout << "Unknown depth"; break;
+  // }
+  // std::cout << ", Channels: " << Nchannels << std::endl;
+  //
 
 
   std::vector<cv::Mat> channels(3);
