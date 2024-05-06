@@ -1,0 +1,1 @@
+g++ main.cpp padel.cpp -I C:\opencv\install\include -L C:\opencv\install\x64\mingw\lib -lopencv_core480 -lopencv_highgui480 -lopencv_imgproc480 -lopencv_videoio480 -lopencv_video480 -lopencv_imgcodecs480
