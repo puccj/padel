@@ -259,5 +259,10 @@ P operator+(P lhs, int rhs) {
   return P{lhs.x + rhs, lhs.y + rhs};
 }
 
+std::vector<cv::Point> operator-(std::vector<cv::Point> lhs, cv::Rect const& rhs) {
+  for (int i = 0; i < lhs.size(); ++i)
+    lhs[i] -= {rhs.x, rhs.y};
+  return lhs;
+}
 
 #endif //PADEL_UTILS_H

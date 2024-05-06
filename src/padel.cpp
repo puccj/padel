@@ -7,6 +7,7 @@
 #include <fstream>
 #include <algorithm>
 #include <numeric>
+#include <unordered_map>
 
 cv::Point2f Padel::mousePosition = {-1,-1};
 
@@ -260,6 +261,7 @@ bool Padel::process(int delay, std::string outputVideo, std::string outputData, 
       //Calculate the predominant color of the current roi
       cv::Mat Lab;
       cv::cvtColor(original, Lab, cv::COLOR_BGR2Lab);
+
       // Option A: just use the color in the upper center
       cv::Point2f body = {(float)(r.x + r.width/2.), (float)(r.y + r.height/4.)};
       cv::circle(frame, body, 1, {0,255,0}, 3, cv::LINE_AA);
@@ -272,6 +274,38 @@ bool Padel::process(int delay, std::string outputVideo, std::string outputData, 
       // //std::cout << "Debug: color = " << color << '\n';
       // thisColor.push_back(color);
       */
+
+      // Option C: Taking the peak of histogram
+      /*
+      std::unordered_map<int, int> colorCounts;
+      for (const auto& point : contour) {
+        cv::Vec3b pixel = original.at<cv::Vec3b>(point);
+        int color = pixel[0] << 16 | pixel[1] << 8 | pixel[2];
+        ++colorCounts[color];
+      }
+
+      int predominantColor = 0;
+      int maxCount = 0;
+      for (const auto& pair : colorCounts) {
+        if (pair.second > maxCount) {
+          maxCount = pair.second;
+          predominantColor = pair.first;
+        }
+      }
+    
+      // We now have the predominant color in its hash (as an int)
+
+      std::cout << "Debug: Predominant color: " << predominantColor << '\n';
+      int blue = (predominantColor >> 16) & 0xFF;
+      int green = (predominantColor >> 8) & 0xFF;
+      int red = predominantColor & 0xFF;
+
+      std::cout << "Blue = " << blue << '\n';
+      std::cout << "Green = " << green << '\n';
+      std::cout << "Red = " <<  red << '\n';
+      */
+      // Too simple, never takes the color of the shirt because it's a little bit different in every pixel.
+
     }
 
     //Find best 4 points using their position
