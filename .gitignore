@@ -1,7 +1,7 @@
 a.exe
 cam.cpp
 cam.h
-test
+tests
 .vscode
 parameters
 ToBeUploaded
@@ -9,3 +9,10 @@ data
 inputVideo
 padel_debug.cpp
 padel_new.cpp
+output_videos/*
+output_data/*
+test_AI
+input_videos
+models/*
+__pycache__
+yolov8x.pt
