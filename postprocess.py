@@ -23,10 +23,10 @@ def create_heatmaps(input_csv_path, output_path = "output_heatmaps/"):
         # Iterate over each row in the CSV file
         for row in csvreader:
             # Each row is a list where each element represents a cell in that row
-            coordinates_1 = tuple(map(float(re.findall(r'[-+]?\d*\.\d+|\d+', row[2]))))
-            coordinates_2 = tuple(map(float(re.findall(r'[-+]?\d*\.\d+|\d+', row[6]))))
-            coordinates_3 = tuple(map(float(re.findall(r'[-+]?\d*\.\d+|\d+', row[10]))))
-            coordinates_4 = tuple(map(float(re.findall(r'[-+]?\d*\.\d+|\d+', row[14]))))
+            coordinates_1 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[2])))
+            coordinates_2 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[6])))
+            coordinates_3 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[10])))
+            coordinates_4 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[14])))
             player1_positions.append(coordinates_1)
             player2_positions.append(coordinates_2)
             player3_positions.append(coordinates_3)
