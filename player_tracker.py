@@ -43,8 +43,12 @@ class PlayerTracker:
         player_dict = {}
         # Here we only want people -> we'll exclude everything else. 
         # Also, since we have another separate track for the ball, we exclude that as well.
-        for box in results.boxes:
-            track_id = int(box.id.tolist()[0])
+        for i, box in enumerate(results.boxes):
+            track_id = box.id
+            if track_id is None:
+                track_id = i
+            else:
+                track_id = int(track_id.tolist()[0])
             result = box.xyxy.tolist()[0]       #xyxy format means x_min y_min , x_max y_max
             object_cls_id = box.cls.tolist()[0]
             object_cls_name = id_name_dict[object_cls_id]
@@ -79,6 +83,9 @@ class PlayerTracker:
         self.inactive_players = new_inactive_players
 
     def draw_bboxes(self, frame, player_dict):
+        if player_dict is None:
+            return frame
+        
         for track_id, player_info in player_dict.items():
             bbox = player_info.bbox
             x1, y1, x2, y2 = bbox

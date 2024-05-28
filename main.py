@@ -9,7 +9,8 @@ def main ():
 
     analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
 
-    analyzer.process_all()
+    analyzer.process_all(method=PadelAnalyzer.Method.ACCURATE)
+    # analyzer.process_all(method=PadelAnalyzer.Method.FAST)
 
     create_heatmaps(csv_path)
 

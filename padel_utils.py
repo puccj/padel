@@ -1,5 +1,19 @@
+import os
 import numpy as np
 import cv2 as cv
+
+def ensure_directory_exists(file_path):
+    # Extract the directory from the given file path
+    directory = os.path.dirname(file_path)
+    
+    # If directory is empty, don't attempt to create it
+    if not directory:
+        return
+    
+    # Check if the directory exists
+    if not os.path.exists(directory):
+        # Create the directory if it does not exist
+        os.makedirs(directory)
 
 def get_foot_position(bbox):
     x1, y1, x2, y2 = bbox
@@ -16,7 +30,7 @@ def get_centroid(bbox):
     return ((x1 + x2) / 2, (y1 + y2) / 2)
 
 
-def draw_mini_court(frame, player_dict):
+def draw_mini_court(frame, player_dict = None):
     # Variables
     #zoom = 25
     zoom = int(frame.shape[0] / 40)  #hight of frame/40
@@ -47,6 +61,9 @@ def draw_mini_court(frame, player_dict):
 
 
     # Draw players on mini court
+    if player_dict == None:
+        return frame
+    
     for id, player_info in player_dict.items():
         if id > 5:
             id = id % 4

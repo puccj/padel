@@ -3,18 +3,24 @@ import random
 import time
 from collections import namedtuple
 from datetime import datetime
+from enum import Enum
 
 import cv2 as cv
 import numpy as np
 import csv
 
 from player_tracker import PlayerTracker
-from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats
+from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats, ensure_directory_exists
 
 # TO DO: move draw stuff to another class
 # TO DO: move saving stuff to another class
 
 class PadelAnalyzer:
+    class Method(Enum):
+        FAST = 1
+        MEDIUM = 2
+        ACCURATE = 3
+
     def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100):
         self.cap = cv.VideoCapture(input_path)
         if not self.cap.isOpened():
@@ -36,13 +42,9 @@ class PadelAnalyzer:
 
         self.output_video_path = output_video_path or f"ToBeUploaded/{self.video_name}.avi"
         self.output_csv_path = output_csv_path or f"output_data/{self.video_name}.csv"
-        # Equivalent:
-        # self.output_video_path = output_video_path
-        # if output_video_path == None:
-        #     self.output_video_path = "ToBeUploaded/" + self.video_name + '.avi'
-        # self.output_csv_path = output_csv_path
-        # if (output_csv_path == None):
-        #     self.output_csv_path = "output_data/" + self.video_name + '.csv'
+        
+        ensure_directory_exists(self.output_video_path)    
+        ensure_directory_exists(self.output_csv_path)
 
         # Load fps and matrix
         self.fps = self.load_fps()
@@ -72,7 +74,7 @@ class PadelAnalyzer:
         # TO SEE: keep it or remove it?
         return
         
-    def process_all(self):
+    def process_all(self, method = Method.ACCURATE):
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
@@ -85,7 +87,15 @@ class PadelAnalyzer:
         fourcc = cv.VideoWriter_fourcc(*'MJPG')
         out = cv.VideoWriter(self.output_video_path, fourcc, 24, (first_frame.shape[1], first_frame.shape[0]))
         
-        player_tracker = PlayerTracker(model_path='yolov8x')
+        # Choosing model
+        if method == PadelAnalyzer.Method.ACCURATE:
+            model = 'yolov8x'
+        elif method == PadelAnalyzer.Method.MEDIUM:
+            model = 'yolov8m'
+        elif method == PadelAnalyzer.Method.FAST:
+            model = 'yolov8n'
+
+        player_tracker = PlayerTracker(model_path=model)
         
         # --- Main loop: one iteration per frame ---
         frame_num = 0
@@ -98,12 +108,23 @@ class PadelAnalyzer:
             # Detect players
             detected_dict = player_tracker.detect(frame)
 
-            # Get positions (in meter)
-            # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
-            player_dict = self.calculate_positions(detected_dict)
+            # if not detected_dict:   # if the directory is empty
+            #     print("Directory empty")
+            #     frame = draw_mini_court(frame)
+            #     out.write(frame)
+            #     frame_num += 1
+            #     # TO DO : Save output data anyway (empty)       # TO DO : remvove all the (0,0) positions
+            #     continue
+            
+            if detected_dict:   #if the directory is not empty
+                # Get positions (in meter)
+                # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
+                player_dict = self.calculate_positions(detected_dict)
 
-            # Choose best 4 players
-            player_dict = player_tracker.choose_players(player_dict)
+                # Choose best 4 players
+                player_dict = player_tracker.choose_players(player_dict)
+            else:
+                player_dict = None
 
             # Record data
             frame_data = self.record_frame_data(frame_num, player_dict)
@@ -280,7 +301,7 @@ class PadelAnalyzer:
 
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
 
-    def record_frame_data(self, frame_num, player_dict):
+    def record_frame_data(self, frame_num, player_dict = None):
         frame_data = {
             'frame_num': frame_num,
             'player_1_id': '',
@@ -300,14 +321,15 @@ class PadelAnalyzer:
             'player_4_distance': 0,
             'player_4_speed': 0
         }
+
+        if player_dict is None:
+            return frame_data
+
         for i, (player_id, player_info) in enumerate(player_dict.items()):
             frame_data[f'player_{i + 1}_id'] = player_id
             frame_data[f'player_{i + 1}_position'] = player_info.position
 
-            if (frame_num <= self.mean_interval):    #at beginning of video, 0 speed and covered distance
-                frame_data[f'player_{i + 1}_distance'] = 0 
-                frame_data[f'player_{i + 1}_speed'] = 0 
-            else:
+            if (frame_num > self.mean_interval):    #calculate speed and distances only after having accumulated enogh data
                 # data of mean_interval frames ago
                 last_data = self.all_frame_data[frame_num%self.save_interval - self.mean_interval]  #if negative roll back up
                 distance = get_distance(player_info.position, last_data[f'player_{i+1}_position'])
