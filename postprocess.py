@@ -4,9 +4,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
+from padel_utils import ensure_directory_exists
+
 # TO DO: make this a class
 
 def create_heatmaps(input_csv_path, output_path = "output_heatmaps/"):
+
+    # check if input csv file exists and if it contains data (more than 1 row)
+    try:
+        with open(input_csv_path, 'r') as csvfile:
+            csvreader = csv.reader(csvfile)
+            if len(list(csvreader)) < 2:
+                print(f"POSTPROCESS NOTE 1: Input CSV file '{input_csv_path}' does not contain any data.")
+                return
+    except:
+        print(f"POSTPROCESS NOTE 2: Input CSV file '{input_csv_path}' does not exist.")
+        return
+    
+    # check if the csv file contains more than 1 row
+
+    ensure_directory_exists(output_path)
 
     player1_positions = []
     player2_positions = []

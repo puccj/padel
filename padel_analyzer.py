@@ -31,9 +31,9 @@ class PadelAnalyzer:
         if isinstance(input_path, str):
             self.file_opened = True
             self.video_name = input_path.replace('/','-').replace("\\",'-')
-            self.video_name = os.path.splitext(self.cam_name)[0]
             if cam_name == None:
                 self.cam_name = self.video_name
+            self.video_name = os.path.splitext(self.cam_name)[0]
         elif isinstance(input_path, int):
             self.file_opened = False
             self.video_name = str(input_path) + datetime.today().strftime('%Y-%m-%d-%H:%M')
@@ -41,10 +41,12 @@ class PadelAnalyzer:
                 self.cam_name = str(input_path)
 
         self.output_video_path = output_video_path or f"ToBeUploaded/{self.video_name}.avi"
-        self.output_csv_path = output_csv_path or f"output_data/{self.video_name}.csv"
+        csv_name = output_csv_path or f"output_data/{self.video_name}"
         
+        self.output_csv_paths = [csv_name + '-1.csv', csv_name + '-2.csv', csv_name + '-3.csv']
+
         ensure_directory_exists(self.output_video_path)    
-        ensure_directory_exists(self.output_csv_path)
+        ensure_directory_exists(self.output_csv_paths[0])
 
         # Load fps and matrix
         self.fps = self.load_fps()
@@ -53,7 +55,7 @@ class PadelAnalyzer:
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
         self.mean_interval = int(1*self.fps)
         
-        # Data saving structure     # TO DO: move saving stuff to another class
+        # Data saving structure     # TO SEE: move saving stuff to another class
         self.save_interval = save_interval
         # if (self.mean_interval >= self.save_interval):  #improbable but better to check
         #     self.save_interval = self.mean_interval + 1
@@ -66,9 +68,10 @@ class PadelAnalyzer:
             'player_4_id', 'player_4_position', 'player_4_distance', 'player_4_speed'
         ]
         # Write the header only once at the beginning
-        with open(self.output_csv_path, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.csv_header)
-            writer.writeheader()
+        for csv_path in self.output_csv_paths:
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=self.csv_header)
+                writer.writeheader()
 
     def process_frame(self):
         # TO SEE: keep it or remove it?
@@ -99,11 +102,21 @@ class PadelAnalyzer:
         
         # --- Main loop: one iteration per frame ---
         frame_num = 0
+        period = 0  # 'tempo' in Italian
         while True:
             success, frame = self.cap.read()
             if not success:
-                print("End of video")
+                print("End of video (before 30 minutes)")
                 break
+            
+            if frame_num == self.fps*60*30: # after 30 minutes
+                print("End 30 minutes")
+                player_tracker = PlayerTracker(model_path=model)    # Restart the tracking
+                #Save data remained in buffer and clear data
+                self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
+                self.all_frame_data = [None] * self.save_interval
+                frame_num = 0
+                period += 1
             
             # Detect players
             detected_dict = player_tracker.detect(frame)
@@ -130,8 +143,9 @@ class PadelAnalyzer:
             frame_data = self.record_frame_data(frame_num, player_dict)
             # Instead of deleting, I'll just save starting all over
             self.all_frame_data[frame_num % self.save_interval] = frame_data
-            if (frame_num+1) % self.save_interval == 0 and frame_num > 0:
-                self.save_data_to_csv(self.all_frame_data)
+            # if (frame_num+1) % self.save_interval == 0 and frame_num != 0:
+            if frame_num % self.save_interval == 0 and frame_num != 0:
+                self.save_data_to_csv(self.all_frame_data, self.output_csv_paths[period])
                 #self.all_frame_data = []
 
             # Draw things and output video      # TO DO: draw function in player tracker or in padel_analyzer? Or another class that only draw stuff?
@@ -147,7 +161,7 @@ class PadelAnalyzer:
         out.release()
 
         # Save data remained in buffer
-        self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)])
+        self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
         #self.all_frame_data = []
 
     #END
@@ -349,8 +363,8 @@ class PadelAnalyzer:
 
         return frame_data
 
-    def save_data_to_csv(self, data):
-        with open(self.output_csv_path, 'a', newline='') as f:
+    def save_data_to_csv(self, data, path):
+        with open(path, 'a', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=self.csv_header)
             writer.writerows(data)
 
