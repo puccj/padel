@@ -4,6 +4,7 @@ import time
 from collections import namedtuple
 from datetime import datetime
 from enum import Enum
+# TODO import logging
 
 import cv2 as cv
 import numpy as np
@@ -12,8 +13,8 @@ import csv
 from player_tracker import PlayerTracker
 from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats, ensure_directory_exists
 
-# TO DO: move draw stuff to another class
-# TO DO: move saving stuff to another class
+# TODO: move draw stuff to another class
+# TODO: move saving stuff to another class
 
 class PadelAnalyzer:
     class Method(Enum):
@@ -24,7 +25,7 @@ class PadelAnalyzer:
     def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100):
         self.cap = cv.VideoCapture(input_path)
         if not self.cap.isOpened():
-            raise RuntimeError(f"PADEL ERROR 1: Could not open video/camera stream {input_path}.")
+            raise RuntimeError(f"PADEL ERROR: Could not open video/camera stream {input_path}.")
             
         # Set names
         self.cam_name = cam_name
@@ -85,7 +86,7 @@ class PadelAnalyzer:
         # Take first frame
         success, first_frame = self.cap.read()
         if not success:
-            raise FileNotFoundError(f"PADEL ERROR 2. Cap is opened, but couldn't read first frame.")
+            raise FileNotFoundError(f"PADEL ERROR: Cap is opened, but couldn't read first frame.")
         
         fourcc = cv.VideoWriter_fourcc(*'MJPG')
         out = cv.VideoWriter(self.output_video_path, fourcc, 24, (first_frame.shape[1], first_frame.shape[0]))
@@ -109,14 +110,17 @@ class PadelAnalyzer:
                 print("End of video (before 30 minutes)")
                 break
             
-            if frame_num == self.fps*60*30: # after 30 minutes
-                print("End 30 minutes")
-                player_tracker = PlayerTracker(model_path=model)    # Restart the tracking
-                #Save data remained in buffer and clear data
-                self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
-                self.all_frame_data = [None] * self.save_interval
-                frame_num = 0
-                period += 1
+            if frame_num == self.fps*60*30: # after 30 minutes..
+                if (period < 2):            #..but only if it's not already the last period
+                    print("End 30 minutes")
+                    player_tracker = PlayerTracker(model_path=model)    # Restart the tracking
+                    #Save data remained in buffer and clear data
+                    self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
+                    self.all_frame_data = [None] * self.save_interval
+                    frame_num = 0
+                    period += 1
+                else:   
+                    print("Warning: last period longer than 30 minutes")
             
             # Detect players
             detected_dict = player_tracker.detect(frame)
@@ -126,7 +130,7 @@ class PadelAnalyzer:
             #     frame = draw_mini_court(frame)
             #     out.write(frame)
             #     frame_num += 1
-            #     # TO DO : Save output data anyway (empty)       # TO DO : remvove all the (0,0) positions
+            #     # TODO : Save output data anyway (empty)       # TODO : remvove all the (0,0) positions
             #     continue
             
             if detected_dict:   #if the directory is not empty
@@ -143,12 +147,11 @@ class PadelAnalyzer:
             frame_data = self.record_frame_data(frame_num, player_dict)
             # Instead of deleting, I'll just save starting all over
             self.all_frame_data[frame_num % self.save_interval] = frame_data
-            # if (frame_num+1) % self.save_interval == 0 and frame_num != 0:
-            if frame_num % self.save_interval == 0 and frame_num != 0:
+            if (frame_num+1) % self.save_interval == 0 and frame_num != 0:
                 self.save_data_to_csv(self.all_frame_data, self.output_csv_paths[period])
                 #self.all_frame_data = []
 
-            # Draw things and output video      # TO DO: draw function in player tracker or in padel_analyzer? Or another class that only draw stuff?
+            # Draw things and output video      # TODO: draw function in player tracker or in padel_analyzer? Or another class that only draw stuff?
             player_tracker.draw_bboxes(frame, player_dict)
             frame = draw_mini_court(frame, player_dict)
             frame = draw_stats(frame, frame_data)
@@ -181,7 +184,7 @@ class PadelAnalyzer:
                 file.write(str(fps))
             return fps
         except ValueError:
-            print(f"PADEL ERROR 2: File path {path} does not contain a valid number, maybe it's corructed. Delete it in order to re-create it.")
+            print(f"PADEL ERROR: File path {path} does not contain a valid number, maybe it's corructed. Delete it in order to re-create it.")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
@@ -216,7 +219,7 @@ class PadelAnalyzer:
         if event == cv.EVENT_LBUTTONDOWN:
             self.mousePosition = (x, y)
         elif event == cv.EVENT_RBUTTONDOWN:
-            self.mousePosition = (-2, -2)   # TO DO: this does not work. Maybe change it to a key pressed
+            self.mousePosition = (-2, -2)   # TODO: this does not work. Maybe change it to a key pressed
     
     def calculate_perspective_matrix(self):
         self.mousePosition = (-1,-1)

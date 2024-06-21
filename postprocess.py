@@ -15,13 +15,13 @@ def create_heatmaps(input_csv_path, output_path = "output_heatmaps/"):
         with open(input_csv_path, 'r') as csvfile:
             csvreader = csv.reader(csvfile)
             if len(list(csvreader)) < 2:
-                print(f"POSTPROCESS NOTE 1: Input CSV file '{input_csv_path}' does not contain any data.")
-                return
+                raise ValueError(f"POSTPROCESS ERROR: Input CSV file '{input_csv_path}' does not contain any data.")
     except:
-        print(f"POSTPROCESS NOTE 2: Input CSV file '{input_csv_path}' does not exist.")
-        return
+        raise FileNotFoundError(f"POSTPROCESS ERROR: Input CSV file '{input_csv_path}' does not exist.")
     
-    # check if the csv file contains more than 1 row
+    # add '/' at the end of path if not present
+    if output_path[-1] != '/':
+        output_path += '/'
 
     ensure_directory_exists(output_path)
 
@@ -39,6 +39,10 @@ def create_heatmaps(input_csv_path, output_path = "output_heatmaps/"):
         
         # Iterate over each row in the CSV file
         for row in csvreader:
+            # # Skip rows with missing player id (position (0,0) is fictitious)
+            # if (row[1] == ''):
+            #     continue
+
             # Each row is a list where each element represents a cell in that row
             coordinates_1 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[2])))
             coordinates_2 = tuple(map(float, re.findall(r'[-+]?\d*\.\d+|\d+', row[6])))
