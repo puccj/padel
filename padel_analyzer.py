@@ -41,10 +41,10 @@ class PadelAnalyzer:
             if cam_name == None:
                 self.cam_name = str(input_path)
 
-        self.output_video_path = output_video_path or f"ToBeUploaded/{self.video_name}.avi"
+        self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analized.mp4"
         csv_name = output_csv_path or f"output_data/{self.video_name}"
         
-        self.output_csv_paths = [csv_name + '-1.csv', csv_name + '-2.csv', csv_name + '-3.csv']
+        self.output_csv_paths = [csv_name + '-period1.csv', csv_name + '-period2.csv', csv_name + '-period3.csv']
 
         ensure_directory_exists(self.output_video_path)    
         ensure_directory_exists(self.output_csv_paths[0])
@@ -88,8 +88,8 @@ class PadelAnalyzer:
         if not success:
             raise FileNotFoundError(f"PADEL ERROR: Cap is opened, but couldn't read first frame.")
         
-        fourcc = cv.VideoWriter_fourcc(*'MJPG')
-        out = cv.VideoWriter(self.output_video_path, fourcc, 24, (first_frame.shape[1], first_frame.shape[0]))
+        fourcc = cv.VideoWriter_fourcc(*'mp4v')
+        out = cv.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
         
         # Choosing model
         if method == PadelAnalyzer.Method.ACCURATE:
@@ -167,7 +167,7 @@ class PadelAnalyzer:
         self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
         #self.all_frame_data = []
 
-    #END
+        return self.output_video_path, self.output_csv_paths
 
 
     # --Helper "private" functions--

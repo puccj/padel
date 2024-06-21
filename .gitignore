@@ -2,7 +2,7 @@ a.exe
 *test*
 .*
 parameters
-ToBeUploaded/*
+to_be_uploaded/*
 input_videos
 output_*
 models/*
