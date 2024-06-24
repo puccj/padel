@@ -124,14 +124,6 @@ class PadelAnalyzer:
             
             # Detect players
             detected_dict = player_tracker.detect(frame)
-
-            # if not detected_dict:   # if the directory is empty
-            #     print("Directory empty")
-            #     frame = draw_mini_court(frame)
-            #     out.write(frame)
-            #     frame_num += 1
-            #     # TODO : Save output data anyway (empty)       # TODO : remvove all the (0,0) positions
-            #     continue
             
             if detected_dict:   #if the directory is not empty
                 # Get positions (in meter)
@@ -319,22 +311,23 @@ class PadelAnalyzer:
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
 
     def record_frame_data(self, frame_num, player_dict = None):
+        null_pos = np.array([0.0, 0.0])
         frame_data = {
             'frame_num': frame_num,
             'player_1_id': '',
-            'player_1_position': (0,0),
+            'player_1_position': null_pos,
             'player_1_distance': 0,
             'player_1_speed': 0,
             'player_2_id': '',
-            'player_2_position': (0,0),
+            'player_2_position': null_pos,
             'player_2_distance': 0,
             'player_2_speed': 0,
             'player_3_id': '',
-            'player_3_position': (0,0),
+            'player_3_position': null_pos,
             'player_3_distance': 0,
             'player_3_speed': 0,
             'player_4_id': '',
-            'player_4_position': (0,0),
+            'player_4_position': null_pos,
             'player_4_distance': 0,
             'player_4_speed': 0
         }

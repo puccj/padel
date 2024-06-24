@@ -31,7 +31,7 @@ class PlayerTracker:
         # Create a new dictionary with only these 4 and return it
         chosen_players = {track_id: player_info for track_id, player_info in player_dict.items() if track_id in chosen_id}
 
-        # TO DO: instead (at the end) take the most present players throwout the video 
+        # TODO: instead (at the end) take the most present players throwout the video 
         return chosen_players
 
     def detect(self, frame):

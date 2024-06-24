@@ -35,15 +35,15 @@ def create_heatmaps(input_csv_path, output_path = None, alpha=0.05):
         
         # Iterate over each row in the CSV file
         for row in csvreader:
-            # # Skip rows with missing player id (position (0,0) is fictitious)
-            # if (row[1] == ''):
-            #     continue
-
-            # Each row is a list where each element represents a cell in that row
-            player1_positions.append([float(x) for x in row[2].strip('[]').split()])
-            player2_positions.append([float(x) for x in row[6].strip('[]').split()])
-            player3_positions.append([float(x) for x in row[10].strip('[]').split()])
-            player4_positions.append([float(x) for x in row[14].strip('[]').split()])
+            # Add positions only if ID is present, otherwise position (0,0) is fictitious
+            if row[1]:
+                player1_positions.append([float(x) for x in row[2].strip('[]').split()])
+            if row[5]:
+                player2_positions.append([float(x) for x in row[6].strip('[]').split()])
+            if row[9]:
+                player3_positions.append([float(x) for x in row[10].strip('[]').split()])
+            if row[13]:
+                player4_positions.append([float(x) for x in row[14].strip('[]').split()])
         
     pos1 = np.array(player1_positions)
     pos2 = np.array(player2_positions)
@@ -55,35 +55,46 @@ def create_heatmaps(input_csv_path, output_path = None, alpha=0.05):
     court_img = mpimg.imread('Field.png')
     bg_color = (0.54,0.73,0.82)
 
-    plt.figure(facecolor=bg_color)
-    plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
-    plt.scatter(pos1[:, 0], pos1[:, 1], color='red', alpha=alpha, label='Player 1')
-    plt.xticks([])
-    plt.yticks([])
-    plt.legend()
-    plt.savefig(output_path + 'player1.png',bbox_inches='tight')
+    if len(pos1) == 0:
+        print("No position data for player 1")
+    else:
+        plt.figure(facecolor=bg_color)
+        plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
+        plt.scatter(pos1[:, 0], pos1[:, 1], color='red', alpha=alpha, label='Player 1')
+        plt.xticks([])
+        plt.yticks([])
+        plt.legend()
+        plt.savefig(output_path + 'player1.png',bbox_inches='tight')
 
-    plt.figure(facecolor=bg_color)
-    plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
-    plt.scatter(pos2[:, 0], pos2[:, 1], color='green', alpha=alpha, label='Player 2')
-    plt.xticks([])
-    plt.yticks([])
-    plt.legend()
-    plt.savefig(output_path + 'player2.png',bbox_inches='tight')
+    if len(pos2) == 0:
+        print("No position data for player 2")
+    else:
+        plt.figure(facecolor=bg_color)
+        plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
+        plt.scatter(pos2[:, 0], pos2[:, 1], color='green', alpha=alpha, label='Player 2')
+        plt.xticks([])
+        plt.yticks([])
+        plt.legend()
+        plt.savefig(output_path + 'player2.png',bbox_inches='tight')
 
-    plt.figure(facecolor=bg_color)
-    plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
-    plt.scatter(pos3[:, 0], pos3[:, 1], color='blue', alpha=alpha, label='Player 3')
-    plt.xticks([])
-    plt.yticks([])
-    plt.legend()
-    plt.savefig(output_path + 'player3.png',bbox_inches='tight')
+    if len(pos3) == 0:
+        print("No position data for player 3")
+    else:
+        plt.figure(facecolor=bg_color)
+        plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
+        plt.scatter(pos3[:, 0], pos3[:, 1], color='blue', alpha=alpha, label='Player 3')
+        plt.xticks([])
+        plt.yticks([])
+        plt.legend()
+        plt.savefig(output_path + 'player3.png',bbox_inches='tight')
 
-
-    plt.figure(facecolor=bg_color)
-    plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
-    plt.scatter(pos4[:, 0], pos4[:, 1], color='yellow', alpha=alpha, label='Player 4')
-    plt.xticks([])
-    plt.yticks([])
-    plt.legend()
-    plt.savefig(output_path + 'player4.png',bbox_inches='tight')
+    if len(pos4) == 0:
+        print("No position data for player 4")
+    else:
+        plt.figure(facecolor=bg_color)
+        plt.imshow(court_img, extent=[0, 10, 0, 20])  # Extent sets the x and y limits of the image
+        plt.scatter(pos4[:, 0], pos4[:, 1], color='yellow', alpha=alpha, label='Player 4')
+        plt.xticks([])
+        plt.yticks([])
+        plt.legend()
+        plt.savefig(output_path + 'player4.png',bbox_inches='tight')
