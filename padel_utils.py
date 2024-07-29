@@ -29,6 +29,19 @@ def get_centroid(bbox):
     x1, y1, x2, y2 = bbox
     return ((x1 + x2) / 2, (y1 + y2) / 2)
 
+def draw_bboxes(frame, player_dict, show_id = False):
+    if player_dict is None or not player_dict:
+        return frame
+    
+    for track_id, player_info in player_dict.items():
+        bbox = player_info.bbox
+        x1, y1, x2, y2 = bbox
+        # bbox[0] = x_min     bbox[1] = y_min
+        if show_id:
+            cv.putText(frame, f"Player ID: {track_id}",(int(bbox[0]),int(bbox[1] -10 )),cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+        cv.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+    
+    return frame
 
 def draw_mini_court(frame, player_dict = None):
     # Variables
@@ -41,7 +54,7 @@ def draw_mini_court(frame, player_dict = None):
     net_color = (0,0,0)
     alpha = 0.2
     field_pos = (offset*2, offset*2)
-    players_color = [(0,0,0), (0,0,255), (0,255,0), (255,0,0), (0,255,255), (255,255,255)]
+    # players_colors = [(0,0,0), (0,0,255), (0,255,0), (255,0,0), (0,255,255), (255,255,255)]
 
     # Draw rectangles
     shapes = np.zeros_like(frame,np.uint8)
@@ -65,9 +78,10 @@ def draw_mini_court(frame, player_dict = None):
         return frame
     
     for id, player_info in player_dict.items():
-        if id > 5:
-            id = id % 4
-        cv.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, players_color[id], 3, cv.LINE_AA)
+        # if id > 5:
+        #     id = id % 4
+        # cv.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, players_colors[id], 3, cv.LINE_AA)
+        cv.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, [0,0,255], 3, cv.LINE_AA)
 
     return frame
 

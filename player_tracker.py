@@ -19,6 +19,8 @@ class PlayerTracker:
         return filtered_player_detections
 
     def choose_players(self, player_dict):
+        """ Simply selects the 4 players closest to the court center (5,10) """
+
         if len(player_dict) <= 4:
             return player_dict
         
@@ -31,10 +33,11 @@ class PlayerTracker:
         # Create a new dictionary with only these 4 and return it
         chosen_players = {track_id: player_info for track_id, player_info in player_dict.items() if track_id in chosen_id}
 
-        # TODO: instead (at the end) take the most present players throwout the video 
         return chosen_players
 
     def detect(self, frame):
+        """ Detects players in the frame and returns a dictionary with the player ID as key and the bbox as value """
+
         # persist=True tells the tracks that this is not just an individaul frame, but other
         # frames will be given afterwards and the model should persist the track in those frames.
         results = self.model.track(frame, persist=True)[0]
@@ -56,11 +59,12 @@ class PlayerTracker:
                 player_dict[track_id] = result
         
         # Reassign IDs
-        self.reassign_ids(player_dict)
+        # self.reassign_ids(player_dict) (TODO: Remove or implement a better reassignment algorithm)
 
         return player_dict
 
     def reassign_ids(self, detected_dict):
+        #TODO: Remove or implement a better reassignment algorithm
         new_active_players = {}
         new_inactive_players = {}
 
@@ -81,19 +85,4 @@ class PlayerTracker:
 
         self.active_players = new_active_players
         self.inactive_players = new_inactive_players
-
-    def draw_bboxes(self, frame, player_dict):
-        if player_dict is None:
-            return frame
-        
-        for track_id, player_info in player_dict.items():
-            bbox = player_info.bbox
-            x1, y1, x2, y2 = bbox
-            # bbox[0] = x_min     bbox[1] = y_min
-            cv.putText(frame, f"Player ID: {track_id}",(int(bbox[0]),int(bbox[1] -10 )),cv.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
-            cv.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
-        
-        return frame
-
-
     

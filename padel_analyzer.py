@@ -11,10 +11,9 @@ import numpy as np
 import csv
 
 from player_tracker import PlayerTracker
-from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats, ensure_directory_exists
+from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats, ensure_directory_exists, draw_bboxes
 
-# TODO: move draw stuff to another class
-# TODO: move saving stuff to another class
+# TODO: make auto-detection of points for perspective matrix
 
 class PadelAnalyzer:
     class Method(Enum):
@@ -50,35 +49,31 @@ class PadelAnalyzer:
         ensure_directory_exists(self.output_csv_paths[0])
 
         # Load fps and matrix
-        self.fps = self.load_fps()
-        self.perspective_matrix = self.load_perspective_matrix()
+        self.fps = self._load_fps()
+        self.perspective_matrix = self._load_perspective_matrix()
         
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
         self.mean_interval = int(1*self.fps)
         
-        # Data saving structure     # TO SEE: move saving stuff to another class
+        # Data saving structure
         self.save_interval = save_interval
         # if (self.mean_interval >= self.save_interval):  #improbable but better to check
         #     self.save_interval = self.mean_interval + 1
-        self.all_frame_data = [None] * save_interval
-        self.csv_header = [
-            'frame_num', 
-            'player_1_id', 'player_1_position', 'player_1_distance', 'player_1_speed',
-            'player_2_id', 'player_2_position', 'player_2_distance', 'player_2_speed',
-            'player_3_id', 'player_3_position', 'player_3_distance', 'player_3_speed',
-            'player_4_id', 'player_4_position', 'player_4_distance', 'player_4_speed'
-        ]
-        # Write the header only once at the beginning
+
         for csv_path in self.output_csv_paths:
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=self.csv_header)
-                writer.writeheader()
+            with open(csv_path, 'w', newline='') as csvfile:
+                pass    # Create the file (erasing it if it already exists)
+
 
     def process_frame(self):
         # TO SEE: keep it or remove it?
         return
         
-    def process_all(self, method = Method.ACCURATE):
+    def process_all(self, method = Method.ACCURATE, recalculate_matrix = False, debug = False):
+        if (recalculate_matrix):
+            self.fps = self._calculate_fps()
+            self.perspective_matrix = self._calculate_perspective_matrix()
+
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
@@ -100,6 +95,7 @@ class PadelAnalyzer:
             model = 'yolov8n'
 
         player_tracker = PlayerTracker(model_path=model)
+        all_frame_data = [None] * self.save_interval
         
         # --- Main loop: one iteration per frame ---
         frame_num = 0
@@ -115,8 +111,8 @@ class PadelAnalyzer:
                     print("End 30 minutes")
                     player_tracker = PlayerTracker(model_path=model)    # Restart the tracking
                     #Save data remained in buffer and clear data
-                    self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
-                    self.all_frame_data = [None] * self.save_interval
+                    self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
+                    all_frame_data = [None] * self.save_interval
                     frame_num = 0
                     period += 1
                 else:   
@@ -124,29 +120,29 @@ class PadelAnalyzer:
             
             # Detect players
             detected_dict = player_tracker.detect(frame)
-            
-            if detected_dict:   #if the directory is not empty
-                # Get positions (in meter)
-                # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
-                player_dict = self.calculate_positions(detected_dict)
+            # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
+            player_dict = self._calculate_positions(detected_dict)
+            # Choose best 4 players to show them in the video (but all are saved in the csv)
+            best_player_dict = player_tracker.choose_players(player_dict)
 
-                # Choose best 4 players
-                player_dict = player_tracker.choose_players(player_dict)
-            else:
-                player_dict = None
-
-            # Record data
-            frame_data = self.record_frame_data(frame_num, player_dict)
+            # Record and save data every save_interval frames
+            frame_data = frame_data = {
+                'frame_num': frame_num,
+                'players': player_dict #or {} # If player_dict is None, use an empty dictionary
+            }
             # Instead of deleting, I'll just save starting all over
-            self.all_frame_data[frame_num % self.save_interval] = frame_data
+            all_frame_data[frame_num % self.save_interval] = frame_data
             if (frame_num+1) % self.save_interval == 0 and frame_num != 0:
-                self.save_data_to_csv(self.all_frame_data, self.output_csv_paths[period])
-                #self.all_frame_data = []
+                self._save_data_to_csv(all_frame_data, self.output_csv_paths[period])
 
-            # Draw things and output video      # TODO: draw function in player tracker or in padel_analyzer? Or another class that only draw stuff?
-            player_tracker.draw_bboxes(frame, player_dict)
-            frame = draw_mini_court(frame, player_dict)
-            frame = draw_stats(frame, frame_data)
+            # Draw things and output video
+            if debug:
+                frame = draw_bboxes(frame, player_dict, show_id=True)
+                frame = draw_mini_court(frame, player_dict)
+            else:
+                frame = draw_bboxes(frame, best_player_dict, show_id=False)
+                frame = draw_mini_court(frame, best_player_dict)
+            # frame = draw_stats(frame, frame_data)     Can't draw stats because only position is saved (other data to be calculated during postprocess)
 
             out.write(frame)
         
@@ -156,22 +152,21 @@ class PadelAnalyzer:
         out.release()
 
         # Save data remained in buffer
-        self.save_data_to_csv(self.all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
-        #self.all_frame_data = []
+        self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
 
         return self.output_video_path, self.output_csv_paths
 
 
     # --Helper "private" functions--
 
-    def load_fps(self):
+    def _load_fps(self):
         path = self.cam_name + '-fps.txt'
         try:
             with open(path, 'r') as file:
                 content = file.read().strip()
                 return float(content)
         except FileNotFoundError:
-            fps = self.calculate_fps()
+            fps = self._calculate_fps()
             with open(path, 'w') as file:
                 file.write(str(fps))
             return fps
@@ -180,7 +175,7 @@ class PadelAnalyzer:
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
-    def calculate_fps(self):
+    def _calculate_fps(self):
         fps = self.cap.get(cv.CAP_PROP_FPS)
         if fps != 0:
             return fps
@@ -198,26 +193,26 @@ class PadelAnalyzer:
         fps = num_frames / (end-start)
         return fps
 
-    def load_perspective_matrix(self):
+    def _load_perspective_matrix(self):
         path = self.cam_name + '-matrix.txt'
         try:
             matrix = np.loadtxt(path)
         except FileNotFoundError:
-            matrix = self.calculate_perspective_matrix()
+            matrix = self._calculate_perspective_matrix()
             np.savetxt(path, matrix)
         return matrix
 
-    def onMouse(self, event, x, y, flags, param):
+    def _onMouse(self, event, x, y, flags, param):
         if event == cv.EVENT_LBUTTONDOWN:
             self.mousePosition = (x, y)
         elif event == cv.EVENT_RBUTTONDOWN:
             self.mousePosition = (-2, -2)   # TODO: this does not work. Maybe change it to a key pressed
     
-    def calculate_perspective_matrix(self):
+    def _calculate_perspective_matrix(self):
         self.mousePosition = (-1,-1)
         winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm."
         cv.namedWindow(winName)
-        cv.setMouseCallback(winName, self.onMouse)
+        cv.setMouseCallback(winName, self._onMouse)
 
         angles = []  # angles of the field
 
@@ -297,11 +292,14 @@ class PadelAnalyzer:
 
         return perspMat
     
-    def calculate_positions(self, detected_dict):
+    def _calculate_positions(self, detected_dict):
         """ 
         Calculate positions (in meter) of players.
         Given the detected dictionary {ID, bbox}, return {ID, (bbox, position)}
         """
+        if not detected_dict:
+            return {}
+        
         bboxes = [box for box in detected_dict.values()]
         # Reshape feet positions to the required shape (n, 1, 2) (the extra 1 required from perspectiveTransform)
         feet = get_feet_positions(bboxes).reshape(-1, 1, 2) 
@@ -310,7 +308,7 @@ class PadelAnalyzer:
 
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
 
-    def record_frame_data(self, frame_num, player_dict = None):
+    def _record_frame_data(self, frame_num, player_dict = {}):
         null_pos = np.array([0.0, 0.0])
         frame_data = {
             'frame_num': frame_num,
@@ -359,9 +357,13 @@ class PadelAnalyzer:
 
         return frame_data
 
-    def save_data_to_csv(self, data, path):
-        with open(path, 'a', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=self.csv_header)
-            writer.writerows(data)
-
-
+    def _save_data_to_csv(self, data, path):
+        with open(path, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            for frame_data in data:
+                row = [frame_data['frame_num']]
+                for player_id, player_info in frame_data['players'].items():
+                    row.append(player_id)
+                    row.append(player_info.position)
+                writer.writerow(row)
