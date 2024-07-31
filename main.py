@@ -15,7 +15,7 @@ def main ():
 
     # Create 4 heatmaps for each period
     # for csv in out_csvs:
-    #     create_heatmaps(csv)
+    #     pass #write better using new postprocess code
 
 
 if __name__ == "__main__":
