@@ -1,6 +1,6 @@
 from ultralytics import YOLO 
 import cv2 as cv
-from padel_utils import get_distance, get_centroid
+from padel_utils import get_distance
 
 class PlayerTracker:
     def __init__(self, model_path, max_distance_threshold=50):
@@ -57,32 +57,5 @@ class PlayerTracker:
             object_cls_name = id_name_dict[object_cls_id]
             if object_cls_name == "person":
                 player_dict[track_id] = result
-        
-        # Reassign IDs
-        # self.reassign_ids(player_dict) (TODO: Remove or implement a better reassignment algorithm)
 
-        return player_dict
-
-    def reassign_ids(self, detected_dict):
-        #TODO: Remove or implement a better reassignment algorithm
-        new_active_players = {}
-        new_inactive_players = {}
-
-        for new_id, bbox in detected_dict.items():
-            new_position = get_centroid(bbox)
-            reassigned = False
-
-            # Check if this new player can be an inactive player re-entering the scene
-            for old_id, old_info in self.inactive_players.items():
-                old_position = old_info['position']
-                if get_distance(new_position, old_position) < self.max_distance_threshold:
-                    new_active_players[old_id] = {'bbox': bbox, 'position': new_position}
-                    reassigned = True
-                    break
-
-            if not reassigned:
-                new_active_players[new_id] = {'bbox': bbox, 'position': new_position}
-
-        self.active_players = new_active_players
-        self.inactive_players = new_inactive_players
-    
+        return player_dict    

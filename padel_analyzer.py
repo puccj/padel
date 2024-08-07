@@ -72,6 +72,13 @@ class PadelAnalyzer:
         return
         
     def process_all(self, method = Method.ACCURATE, debug = False):
+        """
+        Process all the frames of the video. 
+        method: PadelAnalyzer.Method.ACCURATE, PadelAnalyzer.Method.MEDIUM, PadelAnalyzer.Method.FAST
+        debug: bool
+        Return: the path of the output video, its fps, and the path of the csv files (results).
+        """
+
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
@@ -152,7 +159,7 @@ class PadelAnalyzer:
         # Save data remained in buffer
         self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
 
-        return self.output_video_path, self.output_csv_paths
+        return self.output_video_path, self.fps, self.output_csv_paths
 
 
     # --Helper "private" functions--

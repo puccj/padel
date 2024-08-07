@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import cv2 as cv
+from tqdm import tqdm
 
 from padel_utils import ensure_directory_exists, get_distance
 
@@ -12,7 +13,7 @@ def is_inside_field(position):
     return 0 <= position[0] <= 10 and 0 <= position[1] <= 20
 
 class CsvAnalyzer:
-    def __init__(self, input_csv_path, mean_interval=None, fps = 20):
+    def __init__(self, input_csv_path, fps, mean_interval=None):
         
         self.video_name = input_csv_path.replace('/','-').replace("\\",'-')
         self.video_name = os.path.splitext(self.video_name)[0]
@@ -229,7 +230,7 @@ class CsvAnalyzer:
                 if not player_found:
                     # players_data[player][frame_num]['position'] = None    
                     players_data[player][frame_num]['distance'] = players_data[player][frame_num - 1]['distance']
-                    print(f"Debug: Player {player} not found in frame {frame_num}")
+                    # print(f"Debug: Player {player} not found in frame {frame_num}")
 
             # end for player
         # end for frame_data
@@ -386,12 +387,13 @@ class CsvAnalyzer:
             plt.show()
 
 
-    def create_videos(self, output_path = 'Default', field_height=800, draw_net=False, speed_factor=2, trace=0):
+    def create_videos(self, output_path = 'Default', field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05):
         #TODO See output_path when None...
         """
         Create a video showing the heatmap of the players over time.
         output_path: if None, the video will be shown instead of saved. 
         trace: number of frame after which the trace fade away. If 0, the trace will never fade.
+        alpha: transparency of the trace
         """
 
         if output_path == 'Default':
@@ -402,8 +404,7 @@ class CsvAnalyzer:
 
         bg_color = (209, 186, 138)
         players_color=[(0,255,255), (0,255,0), (0,0,255), (255,0,0)]
-        frames_to_fade = 10
-        alpha = 0.7
+        alpha_box = 0.7
         
         offset = int(field_height/30)
         font_size = int(field_height/800)
@@ -429,10 +430,10 @@ class CsvAnalyzer:
         # Add rectangle for text
         overlay = bg_single.copy()
         cv.rectangle(overlay, (offset, field_height + 2*offset), (width_single - offset, height_single - offset), (128, 128, 128), -1)
-        cv.addWeighted(overlay, alpha, bg_single, 1 - alpha, 0, bg_single)
+        cv.addWeighted(overlay, alpha_box, bg_single, 1 - alpha_box, 0, bg_single)
         overlay = bg_all.copy()
         cv.rectangle(overlay, (field_width + 3*offset, offset), (width_all - offset, 13*offset), (128, 128, 128), -1)
-        cv.addWeighted(overlay, alpha, bg_all, 1 - alpha, 0, bg_all)
+        cv.addWeighted(overlay, alpha_box, bg_all, 1 - alpha_box, 0, bg_all)
 
         # Add fixed text
         text = '      Total distance   |   Speed'
@@ -451,54 +452,83 @@ class CsvAnalyzer:
         out_singles = [cv.VideoWriter(f'{output_path}player{i+1}.mp4', fourcc, self.fps*speed_factor, (width_single, height_single)) for i in range(4)]
         out_all = cv.VideoWriter(f'{output_path}all_players.mp4', fourcc, self.fps*speed_factor, (width_all, height_all))
 
+        # Initialize past positions storage for trace effect
+        past_positions = [[] for _ in range(4)]
+
         # Write frames
-        for frame_num in range(len(self.players_data[0])):
+        for frame_num in tqdm(range(len(self.players_data[0]))):
             frame_all = bg_all.copy()
 
             for player, player_data in enumerate(self.players_data):
                 frame_single = bg_single.copy()
                 pos = player_data[frame_num]['position']
-                if pos is not None:
-                    cv.circle(frame_single, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
-                    text = f'Player {player+1}'
-                    frame_single = cv.putText(frame_single, text, (2*offset, field_height + 4*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
-                    text = f'Total distance:  {int(player_data[frame_num]['distance'])} m'
-                    frame_single = cv.putText(frame_single, text, (2*offset, field_height + 6*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
-                    text = f'Speed:    {player_data[frame_num]['speed']:.2f} km/h'
-                    frame_single = cv.putText(frame_single, text, (2*offset, field_height + 8*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
+                if pos is None:
+                    out_singles[player].write(frame_single)
+                    continue
+                
+                # Update past positions
+                past_positions[player].append(pos)
+                if len(past_positions[player]) > trace and trace > 0:
+                    past_positions[player].pop(0)
+                
+                # Draw current position and text
+                cv.circle(frame_single, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                text = f'Player {player+1}'
+                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 4*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
+                text = f'Total distance:  {int(player_data[frame_num]['distance'])} m'
+                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 6*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
+                text = f'Speed:    {player_data[frame_num]['speed']:.2f} km/h'
+                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 8*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
 
-                    cv.circle(frame_all, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
-                    text = f'                {int(player_data[frame_num]['distance'])} m        {player_data[frame_num]['speed']:.2f} km/h'
-                    frame_all = cv.putText(frame_all, text, (field_width + 4*offset, text_yposition[player]), cv.FONT_HERSHEY_SIMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
+                # Draw current position on all players video
+                cv.circle(frame_all, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                text = f'                {int(player_data[frame_num]['distance'])} m        {player_data[frame_num]['speed']:.2f} km/h'
+                frame_all = cv.putText(frame_all, text, (field_width + 4*offset, text_yposition[player]), cv.FONT_HERSHEY_SIMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
+
+                # Draw trace positions
+                overlay_single = frame_single.copy()
+                overlay_all = frame_all.copy()
+                for past_pos in past_positions[player]:
+                    # alpha_trace = 1.0 - (trace_index + 1) / trace if trace > 0 else 1.0
+                    cv.circle(overlay_single, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                    cv.circle(overlay_all, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+
+                cv.addWeighted(overlay_single, alpha, frame_single, 1 - alpha, 0, frame_single)
+                cv.addWeighted(overlay_all, alpha, frame_all, 1 - alpha, 0, frame_all)
                 
                 out_singles[player].write(frame_single)
-                # Write distance and speed
             out_all.write(frame_all)
         
         out_singles[0].release()
         out_singles[1].release()
         out_singles[2].release()
         out_singles[3].release()
-        out_all.release()           
+        out_all.release()
 
 
-            
-
-                
-
-        
-        
-        
-       
-
-    def create_graphs(self, output_path = None, figsize=(8, 6)):
+    def create_graphs(self, output_path = 'Default', figsize=(8, 6)):
+        """
+        Create both the speed and the distance graphs showing the speed and distance of each player over time.
+        output_path: if is None, the graphs will be shown instead of saved.
+        """
         self.create_speed_graph(output_path, figsize)
         self.create_distance_graph(output_path, figsize)
     
-    def create_heatmaps_and_video(self, output_path = None, alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
+    def create_heatmaps_and_video(self, output_path = 'Default', 
+                                        alpha = 0.05, 
+                                        colors = ['yellow', (0,1,0), (1,0,0), 'blue'], 
+                                        draw_net = False, 
+                                        field_height = 800, 
+                                        speed_factor = 2, 
+                                        trace = 0):
+        """
+        Create both video and final image of the heatmap for each player, containing also distance and speed data.
+        output_path: if None, the heatmaps will be shown instead of saved.
+        trace: number of frame after which the trace fade away. If 0, the trace will never fade.
+        """
         self.create_heatmaps(output_path, alpha, colors, draw_net)
-        self.create_video(output_path)
+        self.create_videos(output_path, field_height, draw_net, speed_factor, trace, alpha)
     
-    def create_all(self, output_path = None, figsize=(8, 6), alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
+    def create_all(self, output_path = 'Default', figsize=(8, 6), alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
         self.create_heatmaps_and_video(output_path, alpha, colors, draw_net)
         self.create_graphs(output_path, figsize)
