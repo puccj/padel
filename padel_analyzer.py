@@ -21,26 +21,24 @@ class PadelAnalyzer:
         MEDIUM = 2
         ACCURATE = 3
 
-    def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100):
+    def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate_matrix = False):
         self.cap = cv.VideoCapture(input_path)
         if not self.cap.isOpened():
             raise RuntimeError(f"PADEL ERROR: Could not open video/camera stream {input_path}.")
             
         # Set names
-        self.cam_name = cam_name
         if isinstance(input_path, str):
             self.file_opened = True
             self.video_name = input_path.replace('/','-').replace("\\",'-')
-            if cam_name == None:
-                self.cam_name = self.video_name
-            self.video_name = os.path.splitext(self.cam_name)[0]
+            self.video_name = os.path.splitext(self.video_name)[0]
+            self.cam_name = cam_name or self.video_name
         elif isinstance(input_path, int):
             self.file_opened = False
             self.video_name = str(input_path) + datetime.today().strftime('%Y-%m-%d-%H:%M')
             if cam_name == None:
                 self.cam_name = str(input_path)
 
-        self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analized.mp4"
+        self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analyzed.mp4"
         csv_name = output_csv_path or f"output_data/{self.video_name}"
         
         self.output_csv_paths = [csv_name + '-period1.csv', csv_name + '-period2.csv', csv_name + '-period3.csv']
@@ -49,8 +47,12 @@ class PadelAnalyzer:
         ensure_directory_exists(self.output_csv_paths[0])
 
         # Load fps and matrix
-        self.fps = self._load_fps()
-        self.perspective_matrix = self._load_perspective_matrix()
+        if recalculate_matrix:
+            self.fps = self._calculate_fps()
+            self.perspective_matrix = self._calculate_perspective_matrix()
+        else:
+            self.fps = self._load_fps()
+            self.perspective_matrix = self._load_perspective_matrix()
         
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
         self.mean_interval = int(1*self.fps)
@@ -69,11 +71,7 @@ class PadelAnalyzer:
         # TO SEE: keep it or remove it?
         return
         
-    def process_all(self, method = Method.ACCURATE, recalculate_matrix = False, debug = False):
-        if (recalculate_matrix):
-            self.fps = self._calculate_fps()
-            self.perspective_matrix = self._calculate_perspective_matrix()
-
+    def process_all(self, method = Method.ACCURATE, debug = False):
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
@@ -337,7 +335,7 @@ class PadelAnalyzer:
             frame_data[f'player_{i + 1}_id'] = player_id
             frame_data[f'player_{i + 1}_position'] = player_info.position
 
-            if (frame_num > self.mean_interval):    #calculate speed and distances only after having accumulated enogh data
+            if frame_num > self.mean_interval:    #calculate speed and distances only after having accumulated enogh data
                 # data of mean_interval frames ago
                 last_data = self.all_frame_data[frame_num%self.save_interval - self.mean_interval]  #if negative roll back up
                 distance = get_distance(player_info.position, last_data[f'player_{i+1}_position'])

@@ -46,7 +46,7 @@ def draw_bboxes(frame, player_dict, show_id = False):
 def draw_mini_court(frame, player_dict = None):
     # Variables
     #zoom = 25
-    zoom = int(frame.shape[0] / 40)  #hight of frame/40
+    zoom = int(frame.shape[0] / 40)  #height of frame/40
     offset = 2*zoom
     bg_color = (209, 186, 138) #(255, 255, 255)
     field_color = (129, 94, 61)
