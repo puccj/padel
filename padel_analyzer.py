@@ -11,7 +11,7 @@ import numpy as np
 import csv
 
 from player_tracker import PlayerTracker
-from padel_utils import get_feet_positions, draw_mini_court, get_distance, draw_stats, ensure_directory_exists, draw_bboxes
+from padel_utils import get_feet_positions, draw_mini_court, get_distance, ensure_directory_exists, draw_bboxes
 
 # TODO: make auto-detection of points for perspective matrix
 
@@ -29,7 +29,7 @@ class PadelAnalyzer:
         # Set names
         if isinstance(input_path, str):
             self.file_opened = True
-            self.video_name = input_path.replace('/','-').replace("\\",'-')
+            self.video_name = os.path.basename(input_path)
             self.video_name = os.path.splitext(self.video_name)[0]
             self.cam_name = cam_name or self.video_name
         elif isinstance(input_path, int):

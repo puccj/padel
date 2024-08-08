@@ -15,10 +15,10 @@ def is_inside_field(position):
 class CsvAnalyzer:
     def __init__(self, input_csv_path, fps, mean_interval=None):
         
-        self.video_name = input_csv_path.replace('/','-').replace("\\",'-')
+        self.video_name = os.path.basename(input_csv_path)
         self.video_name = os.path.splitext(self.video_name)[0]
         self.fps = fps      #TODO: Take fps from the <cam_name>-fps.txt file (search that file and read it)
-        self.mean_interval = mean_interval or 1*fps    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
+        self.mean_interval = int(mean_interval or 1*fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
 
         self.all_data = self._read_csv(input_csv_path)
         self.selected_ids_list = self._get_ids()
@@ -32,6 +32,12 @@ class CsvAnalyzer:
         Input csv file is expected to have the following format:
         frame_num, detection0_id, detection0_position, detection1_id, detection1_position, ... , detectionX_id, detectionX_position
         """
+
+        if not os.path.exists(input_csv_path):
+            raise FileNotFoundError(f"File not found: {input_csv_path}")
+        
+        if os.path.getsize(input_csv_path) == 0:
+            raise ValueError(f"File is empty: {input_csv_path}")
 
         organized_data = []
 
