@@ -41,6 +41,7 @@ class PlayerTracker:
         # persist=True tells the tracks that this is not just an individaul frame, but other
         # frames will be given afterwards and the model should persist the track in those frames.
         results = self.model.track(frame, persist=True)[0]
+        # results = self.model.track(frame, persist=True, tracker="bytetrack.yaml")[0]
         id_name_dict = results.names
 
         player_dict = {}

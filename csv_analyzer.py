@@ -50,7 +50,10 @@ class CsvAnalyzer:
                 
                 detections = []
                 for i in range(0, len(detections_data), 2):
-                    detection_id = int(detections_data[i])
+                    try:
+                        detection_id = int(detections_data[i])
+                    except ValueError:
+                        print(f"Error in frame {frame_num}: detection ID is not an integer. Is there a trailing comma?.")
                     detection_position_str = detections_data[i + 1]
                     detection_position_str = detection_position_str.strip('[] ')                      # Remove brackets and spaces
                     detection_position = [float(coord) for coord in detection_position_str.split()]   # Convert to list of floats
@@ -90,7 +93,10 @@ class CsvAnalyzer:
 
         # Initialize selected_ids_list with 4 IDs that *needs* to belong to different players
 
-        # Option A (The better way): starting from the most common IDs, going down to the less common untill we find 4 IDs that are present in the same frame
+        # Option A (The easy way): just take the first (valid) 4 in cronological order (i.e the minimum values)
+        starting_ids = sorted(ids_in_field)[:4]
+
+        # Option B (The better way): starting from the most common IDs, going down to the less common untill we find 4 IDs that are present in the same frame
         # # Get the 4 most common IDs and use to initialize the selected_ids sets
         # # TODO: Warning: it could happen that two of the most common IDs are the same player.
         # #       For now I'll just check if all 4 most common IDs are simultaneously present at least in one frame 
@@ -101,9 +107,6 @@ class CsvAnalyzer:
         # most_common_ids = [id for id, _ in id_counter.most_common(4)]
         # starting_ids = most_common_ids
 
-        # Option B (The easy way): just take the first (valid) 4 in cronological order (i.e the minimum values)
-        starting_ids = sorted(ids_in_field)[:4]
-
         # Check if the 4 starting IDs are present in the same frame
         all_together = False
         for frame_data in self.all_data:
@@ -112,7 +115,7 @@ class CsvAnalyzer:
                 all_together = True
                 break
         if not all_together:
-            raise NotImplementedError("POSTPROCESS NOT_IMPLEMENTED: The 4 starting IDs are not present in a same frame. Unsure if they belongs to different players. Aborting...")
+            raise NotImplementedError("POSTPROCESS NOT_IMPLEMENTED: The 4 starting IDs are not present in a same frame. Unsure if they belong to different players. Aborting...")
         
         selected_ids_list = [set([starting_ids[i]]) for i in range(4)]
         for available_ids in available_ids_list:
@@ -167,7 +170,7 @@ class CsvAnalyzer:
                 
                 if not one_is_long_enough:
                     print("Some IDs are not assigned, because available for more than one player and unable to decide")
-                    print("Unassigned IDs: ", available_ids_list)
+                    print("Unassigned IDs: ", available_ids_list[0])    # just the first one is enough, since they are all the same
                     return selected_ids_list
             #end while: so some IDs are added
 
@@ -271,8 +274,14 @@ class CsvAnalyzer:
 
             #TODO: Caclulate total distance like below.
             total_distance = 0
-            X = [positions[0][0]]
-            Y = [positions[0][1]]
+
+            first_not_None = 0            
+            while positions[first_not_None] is None:
+                print("First position is None")
+                first_not_None += 1
+
+            X = [positions[first_not_None][0]]
+            Y = [positions[first_not_None][1]]
 
             for j in range(1, len(positions)):
                 if positions[j] is not None:

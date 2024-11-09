@@ -68,7 +68,7 @@ class PadelAnalyzer:
 
 
     def process_frame(self):
-        # TO SEE: keep it or remove it?
+        # TODO: keep it or remove it?
         return
         
     def process_all(self, method = Method.ACCURATE, debug = False):
