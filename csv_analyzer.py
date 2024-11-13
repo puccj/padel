@@ -13,17 +13,47 @@ def is_inside_field(position):
     return 0 <= position[0] <= 10 and 0 <= position[1] <= 20
 
 class CsvAnalyzer:
-    def __init__(self, input_csv_path, fps, mean_interval=None):
+    def __init__(self, input_csv_path, fps=None, mean_interval=None):
+        """
+        Initialize the CsvAnalyzer object.
         
+        Parameters
+        ----------
+        input_csv_path : str
+            Path to the csv file to analyze.
+        fps : int
+            Optional number of frames per second of the video. If not provided, it will be read from the <cam_name>-fps.txt file.
+        mean_interval : int
+            Optional number of frames to consider for the mean position and velocity (default: 1*fps = 1 second).
+        """
+
         self.video_name = os.path.basename(input_csv_path)
         self.video_name = os.path.splitext(self.video_name)[0]
-        self.fps = fps      #TODO: Take fps from the <cam_name>-fps.txt file (search that file and read it)
-        self.mean_interval = int(mean_interval or 1*fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
+
+        if fps is None:
+            self._read_fps()
+        else:
+            self.fps = fps
+
+        self.mean_interval = int(mean_interval or 1*self.fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
 
         self.all_data = self._read_csv(input_csv_path)
         self.selected_ids_list = self._get_ids()
         self.players_data = self._get_players_data()
 
+    def _read_fps(self):
+        """
+        Read the fps from the <cam_name>-fps.txt file.
+        """
+        fps_files = [file for file in os.listdir(os.getcwd()) if file.endswith("-fps.txt")]
+        if len(fps_files) > 1:
+            print(f"Warning: More than one fps file found. Using the first one ({fps_files[0]})."
+                   " Delete the others if not needed or manually set fps in CSVAnalyzer.")
+        if fps_files:
+            with open(os.path.join(os.getcwd(), fps_files[0]), 'r') as f:
+                self.fps = float(f.read().strip())
+        else:
+            raise FileNotFoundError("FPS file not found. Please provide the fps manually.")
 
     def _read_csv(self, input_csv_path):
         """ 
@@ -115,7 +145,7 @@ class CsvAnalyzer:
                 all_together = True
                 break
         if not all_together:
-            raise NotImplementedError("POSTPROCESS NOT_IMPLEMENTED: The 4 starting IDs are not present in a same frame. Unsure if they belong to different players. Aborting...")
+            raise NotImplementedError("The 4 starting IDs are not present in a same frame. Unsure if they belong to different players. Aborting...")
         
         selected_ids_list = [set([starting_ids[i]]) for i in range(4)]
         for available_ids in available_ids_list:
