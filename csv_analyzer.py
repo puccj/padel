@@ -111,7 +111,7 @@ class CsvAnalyzer:
                 if is_inside_field(detection['position']):
                     ids_in_field.add(detection['id'])
 
-        available_ids_list = [ids_in_field for _ in range(4)] # 4 copies of all the IDs that are inside the field
+        available_ids_list = [ids_in_field.copy() for _ in range(4)] # 4 copies of all the IDs that are inside the field
 
         # Count the number of times each (valid) ID appears
         id_counter = Counter()
@@ -163,6 +163,7 @@ class CsvAnalyzer:
             frame_detections_ids = [detection['id'] for detection in frame_data['detections']]
             for i, selected_id in enumerate(starting_ids):
                 if selected_id in frame_detections_ids:
+                    # TODO: check which of the following is faster:
                     # available_ids_list[i].difference_update([id for id in frame_detections_ids if id != selected_id])
                     available_ids_list[i].difference_update([id for id in frame_detections_ids])
 
@@ -180,6 +181,7 @@ class CsvAnalyzer:
 
                 for i, available_ids in enumerate(available_ids_list):    #for each Player
                     if len(available_ids) <= detection_to_take:
+                        # TODO: remove this debug print
                         print(f"Player {i} has not enough available IDs to check the {detection_to_take}th most common ID")
                         continue
                     one_is_long_enough = True
