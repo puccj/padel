@@ -105,10 +105,11 @@ class PadelAnalyzer:
         # --- Main loop: one iteration per frame ---
         frame_num = 0
         period = 0  # 'tempo' in Italian
+        longer_90 = False
         while True:
             success, frame = self.cap.read()
             if not success:
-                print("End of video (before 30 minutes)")
+                print("End of video" if longer_90 else "End of video (before 90 minutes)")
                 break
             
             if frame_num == self.fps*60*30: # after 30 minutes..
@@ -120,7 +121,8 @@ class PadelAnalyzer:
                     all_frame_data = [None] * self.save_interval
                     frame_num = 0
                     period += 1
-                else:   
+                else:
+                    longer_90 = True
                     print("Warning: last period longer than 30 minutes")
             
             # Detect players
