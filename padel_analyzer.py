@@ -11,17 +11,40 @@ import numpy as np
 import csv
 
 from player_tracker import PlayerTracker
-from padel_utils import get_feet_positions, draw_mini_court, get_distance, ensure_directory_exists, draw_bboxes
+from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes
 
-# TODO: make auto-detection of points for perspective matrix
+# TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
 class PadelAnalyzer:
-    class Method(Enum):
+    class Model(Enum):
         FAST = 1
         MEDIUM = 2
         ACCURATE = 3
 
     def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate_matrix = False):
+        """
+        Initializes the PadelAnalyzer class.
+
+        Parameters
+        ----------
+        input_path : str or int
+            Path to the input video file or camera index.
+        cam_name : str, optional
+            Name of the camera. If not provided, the name will be the video name or the camera index.
+        output_video_path : str, optional
+            Path to save the output video. Defaults to "to_be_uploaded/{video_name}-analyzed.mp4". 
+        output_csv_path : str, optional
+            Path to save the output CSV files. Defaults to "output_data/{video_name}-period{1,2,3}.csv".
+        save_interval : int, optional
+            Interval at which data is saved. Defaults to 100.
+        recalculate_matrix : bool, optional
+            Flag to recalculate the perspective matrix. Defaults to False.
+
+        Raises
+        ------
+        RuntimeError
+            If the video/camera stream could not be opened.
+        """
         self.cap = cv.VideoCapture(input_path)
         if not self.cap.isOpened():
             raise RuntimeError(f"PADEL ERROR: Could not open video/camera stream {input_path}.")
@@ -35,16 +58,15 @@ class PadelAnalyzer:
         elif isinstance(input_path, int):
             self.file_opened = False
             self.video_name = str(input_path) + datetime.today().strftime('%Y-%m-%d-%H:%M')
-            if cam_name == None:
-                self.cam_name = str(input_path)
+            self.cam_name = cam_name or str(input_path)
 
         self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analyzed.mp4"
         csv_name = output_csv_path or f"output_data/{self.video_name}"
         
         self.output_csv_paths = [csv_name + '-period1.csv', csv_name + '-period2.csv', csv_name + '-period3.csv']
 
-        ensure_directory_exists(self.output_video_path)    
-        ensure_directory_exists(self.output_csv_paths[0])
+        os.makedirs(os.path.dirname(self.output_video_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.output_csv_paths[0]), exist_ok=True)
 
         # Load fps and matrix
         if recalculate_matrix:
@@ -65,19 +87,34 @@ class PadelAnalyzer:
         for csv_path in self.output_csv_paths:
             with open(csv_path, 'w', newline='') as csvfile:
                 pass    # Create the file (erasing it if it already exists)
-
-
-    def process_frame(self):
-        # TODO: keep it or remove it?
-        return
         
-    def process_all(self, method = Method.ACCURATE, debug = False):
-        """
-        Process all the frames of the video. 
-        method: PadelAnalyzer.Method.ACCURATE, PadelAnalyzer.Method.MEDIUM, PadelAnalyzer.Method.FAST
-        debug: bool
-        Return: the path of the output video, its fps, and the path of the csv files (results).
-        """
+    def process(self, model = Model.ACCURATE, debug = False):
+        """Process all the frames of the video, detecting players and saving their positions in a CSV file.
+        3 CSV files are created, one for each period of the game.
+        
+        Parameters
+        ----------
+        model : Model, optional
+            The YOLO model to use for player detection. Options are Model.ACCURATE, Model.MEDIUM, and Model.FAST. Default is Model.ACCURATE.
+        debug : bool, optional
+            If True, additional debug information will be drawn on the video, such as player IDs and the mini court. Default is False.
+        
+        Raises
+        ------
+        FileNotFoundError
+            If the video file is opened but the first frame cannot be read.
+        
+        Returns
+        -------
+        tuple
+            A tuple containing:
+            - output_video_path : str
+                The path to the output video file.
+            - fps : int
+                The frames per second of the output video.
+            - output_csv_paths : list
+                A list of paths to the output CSV files containing player data.
+        """        
 
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
@@ -92,17 +129,19 @@ class PadelAnalyzer:
         out = cv.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
         
         # Choosing model
-        if method == PadelAnalyzer.Method.ACCURATE:
+        if model == PadelAnalyzer.Model.ACCURATE:
             model = 'yolov8x'
-        elif method == PadelAnalyzer.Method.MEDIUM:
+        elif model == PadelAnalyzer.Model.MEDIUM:
             model = 'yolov8m'
-        elif method == PadelAnalyzer.Method.FAST:
+        elif model == PadelAnalyzer.Model.FAST:
             model = 'yolov8n'
 
         player_tracker = PlayerTracker(model_path=model)
         all_frame_data = [None] * self.save_interval
         
-        # --- Main loop: one iteration per frame ---
+
+        # ----- Main loop: one iteration per frame -----
+
         frame_num = 0
         period = 0  # 'tempo' in Italian
         longer_90 = False
@@ -130,7 +169,7 @@ class PadelAnalyzer:
             # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
             player_dict = self._calculate_positions(detected_dict)
             # Choose best 4 players to show them in the video (but all are saved in the csv)
-            best_player_dict = player_tracker.choose_players(player_dict)
+            best_player_dict = player_tracker.choose_best_players(player_dict)
 
             # Record and save data every save_interval frames
             frame_data = frame_data = {
@@ -314,55 +353,6 @@ class PadelAnalyzer:
         PlayerInfo = namedtuple('PlayerInfo', ['bbox', 'position'])
 
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
-
-    def _record_frame_data(self, frame_num, player_dict = {}):
-        null_pos = np.array([0.0, 0.0])
-        frame_data = {
-            'frame_num': frame_num,
-            'player_1_id': '',
-            'player_1_position': null_pos,
-            'player_1_distance': 0,
-            'player_1_speed': 0,
-            'player_2_id': '',
-            'player_2_position': null_pos,
-            'player_2_distance': 0,
-            'player_2_speed': 0,
-            'player_3_id': '',
-            'player_3_position': null_pos,
-            'player_3_distance': 0,
-            'player_3_speed': 0,
-            'player_4_id': '',
-            'player_4_position': null_pos,
-            'player_4_distance': 0,
-            'player_4_speed': 0
-        }
-
-        if player_dict is None:
-            return frame_data
-
-        for i, (player_id, player_info) in enumerate(player_dict.items()):
-            frame_data[f'player_{i + 1}_id'] = player_id
-            frame_data[f'player_{i + 1}_position'] = player_info.position
-
-            if frame_num > self.mean_interval:    #calculate speed and distances only after having accumulated enogh data
-                # data of mean_interval frames ago
-                last_data = self.all_frame_data[frame_num%self.save_interval - self.mean_interval]  #if negative roll back up
-                distance = get_distance(player_info.position, last_data[f'player_{i+1}_position'])
-                
-                # add distance only between each n frame, oterwise I'll add to much (non ho voglia di spiegare)
-                if frame_num % self.mean_interval == 0:
-                    cumulative_distance = distance + last_data[f'player_{i+1}_distance']
-                else:
-                    # take frame - fram%mean_interval
-                    last_distance = self.all_frame_data[(frame_num - (frame_num%self.mean_interval))%self.save_interval]
-                    cumulative_distance = last_distance[f'player_{i+1}_distance']
-                
-                frame_data[f'player_{i + 1}_distance'] = cumulative_distance
-
-                dt = self.mean_interval/self.fps
-                frame_data[f'player_{i + 1}_speed'] = 3.6*distance/dt 
-
-        return frame_data
 
     def _save_data_to_csv(self, data, path):
         with open(path, 'a', newline='') as csvfile:

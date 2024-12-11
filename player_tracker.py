@@ -1,5 +1,4 @@
 from ultralytics import YOLO 
-import cv2 as cv
 from padel_utils import get_distance
 
 class PlayerTracker:
@@ -9,17 +8,20 @@ class PlayerTracker:
         self.active_players = {}
         self.inactive_players = {}
 
-    def choose_and_filter_players(self, court_keypoints, player_detections):
-        player_detections_first_frame = player_detections[0]    # Choose the player according only to the first frame
-        chosen_player = self.choose_players(court_keypoints, player_detections_first_frame)
-        filtered_player_detections = []
-        for player_dict in player_detections:
-            filtered_player_dict = {track_id: bbox for track_id, bbox in player_dict.items() if track_id in chosen_player}
-            filtered_player_detections.append(filtered_player_dict)
-        return filtered_player_detections
-
-    def choose_players(self, player_dict):
-        """ Simply selects the 4 players closest to the court center (5,10) """
+    def choose_best_players(self, player_dict):
+        """Selects the best 4 players, simply based on their distance to the center (5, 10).
+        
+        Parameters
+        ----------
+        player_dict : dict
+            A dictionary where keys are track IDs and values are player information objects.
+            Each player information object must have a 'position' attribute which is a tuple (x, y).
+        
+        Returns
+        -------
+        chosen_players: dict
+            A dictionary containing the track IDs and player information of the 4 players closest to the point (5, 10).
+        """
 
         if len(player_dict) <= 4:
             return player_dict
@@ -36,7 +38,24 @@ class PlayerTracker:
         return chosen_players
 
     def detect(self, frame):
-        """ Detects players in the frame and returns a dictionary with the player ID as key and the bbox as value """
+        """Detects players in the frame and returns a dictionary with the player ID as key and the bbox as value.
+        
+            Parameters
+            ----------
+            frame : numpy.ndarray
+                The input frame in which players are to be detected.
+
+            Returns
+            -------
+            player_dict: dict
+                A dictionary where the keys are player IDs and the values are bounding boxes in the format [x_min, y_min, x_max, y_max].
+
+            Notes
+            -----
+            The method uses a tracking model to persist the tracks across multiple frames.
+            Only objects classified as "person" are included in the returned dictionary.
+            The ball and other objects are excluded from the results.
+        """
 
         # persist=True tells the tracks that this is not just an individaul frame, but other
         # frames will be given afterwards and the model should persist the track in those frames.

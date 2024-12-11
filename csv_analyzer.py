@@ -7,7 +7,7 @@ import matplotlib.image as mpimg
 import cv2 as cv
 from tqdm import tqdm
 
-from padel_utils import ensure_directory_exists, get_distance
+from padel_utils import get_distance
 
 def is_inside_field(position):
     return 0 <= position[0] <= 10 and 0 <= position[1] <= 20
@@ -42,9 +42,8 @@ class CsvAnalyzer:
         self.players_data = self._get_players_data()
 
     def _read_fps(self):
-        """
-        Read the fps from the <cam_name>-fps.txt file.
-        """
+        """Read the fps from the <cam_name>-fps.txt file."""
+
         fps_files = [file for file in os.listdir(os.getcwd()) if file.endswith("-fps.txt")]
         if len(fps_files) > 1:
             print(f"Warning: More than one fps file found. Using the first one ({fps_files[0]})."
@@ -56,11 +55,31 @@ class CsvAnalyzer:
             raise FileNotFoundError("FPS file not found. Please provide the fps manually.")
 
     def _read_csv(self, input_csv_path):
-        """ 
-        Read a csv file and return a list of dictionaries (one per frame), each containing {'frame_num', 'detections'}.
-        'detections' is a list of dictionaries (one per detection), each is {'id', 'position'}
-        Input csv file is expected to have the following format:
-        frame_num, detection0_id, detection0_position, detection1_id, detection1_position, ... , detectionX_id, detectionX_position
+        """Reads a CSV file and organizes its data into a structured format.
+
+        Parameters
+        ----------
+        input_csv_path : str
+            The path to the input CSV file.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the specified CSV file does not exist.
+        ValueError
+            If the specified CSV file is empty.
+
+        Returns
+        -------
+        organized_data: list
+            A list of dictionaries, each containing the frame number and a list of detections. 
+            Each detection is represented as a dictionary with 'id' and 'position' keys.
+
+        Notes
+        -----
+        - The CSV file is expected to have rows where the first column is the frame number (integer),
+            followed by pairs of detection ID (integer) and detection position (string in the format '[x y]').
+        - If a detection ID is not an integer, an error message will be printed indicating the frame number.
         """
 
         if not os.path.exists(input_csv_path):
@@ -95,10 +114,12 @@ class CsvAnalyzer:
         return organized_data
 
     def _get_ids(self):
-        """
-        Analyzes the data and returns the IDs of the 4 players throughout the video.
-        The input data is a list of dictionaries (one per frame), each is {'frame_num', 'detections'}. 
-        'detections' is a list of dictionaries (one per detection), each is {'id', 'position'}
+        """Analyzes the organized data and returns the IDs of the 4 players throughout the video.
+
+        Returns
+        -------
+        selected_ids_list: list
+            A list of 4 sets, each containing the IDs of a player.
         """
 
         # Remove IDs that are never inside the field
@@ -217,9 +238,13 @@ class CsvAnalyzer:
     
 
     def _get_players_data(self):
-        """
-        Take selected_ids_list and return the data of the Players in each frame
-        The return is a list of 4 lists (one per player), each containing a dictionary {'position', 'distance', 'speed'}
+        """Take selected_ids_list and return the data of the Players in each frame
+        
+        Returns
+        -------
+        players_data: list
+            A list of 4 lists (one per Players), each containing a dictionary for each frame.
+            Each dictionary contains the 'position', 'distance' and 'speed' of the player in that frame.
         """
 
         total_frames = len(self.all_data)
@@ -279,16 +304,28 @@ class CsvAnalyzer:
         return players_data
 
     def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
-        """
-        Create heatmaps for each player, containing also distance and speed data.
-        If output_path is None, the heatmaps will be shown instead of saved.
+        """Create heatmaps for each player, containing also distance and speed data.
+        
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the heatmaps. If None, the heatmaps will be shown instead of saved. 
+            Defauts to "to_be_uploaded/{video_name}-heatmaps/".
+        alpha : float, optional
+            Transparency of the player positions. Defaults to 0.05.
+        colors : list, optional
+            List of colors to use for each player. Defaults to yellow, green, red, blue.
+
+        Notes
+        -----
+        The heatmaps will be saved as "player{i}.png" for each player and "all_players.png" for all players.
         """
 
         if output_path == 'Default':
             output_path = f"to_be_uploaded/{self.video_name}-heatmaps/"
         
         if output_path is not None:
-            ensure_directory_exists(output_path)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         # Background
         if draw_net:
@@ -380,16 +417,22 @@ class CsvAnalyzer:
 
 
     def create_speed_graph(self, output_path = 'Default', figsize=(8, 6)):
-        """
-        Create a graph showing the speed of each player over time.
-        If output_path is None, the graph will be shown instead of saved.
+        """Create a graph showing the speed of each player over time.
+
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the graph. If None, the graph will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-graphs/speed_graph.png".
+        figsize : tuple, optional
+            Size of the figure. Defaults to (8, 6).
         """
 
         if output_path == 'Default':
-            output_path = f"to_be_uploaded/{self.video_name}-graphs/"
+            output_path = f"to_be_uploaded/{self.video_name}-graphs/speed_graph.png"
 
         if output_path is not None:
-            ensure_directory_exists(output_path)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         plt.figure(figsize=figsize)
 
@@ -402,21 +445,32 @@ class CsvAnalyzer:
         plt.legend()
 
         if output_path is not None:
-            plt.savefig(f"{output_path}speed_graph.png", bbox_inches='tight')
+            plt.savefig(output_path, bbox_inches='tight')
         else:
             plt.show()
     
     def create_distance_graph(self, output_path = 'Default', figsize=(8, 6)):
-        """
-        Create a graph showing the distance covered by each player over time.
-        If output_path is None, the graph will be shown instead of saved.
+        # TODO: calculate the distance correctly
+        """Create a graph showing the distance covered by each player over time.
+
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the graph. If None, the graph will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-graphs/distance_graph.png".
+        figsize : tuple, optional
+            Size of the figure. Defaults to (8, 6).
+
+        Notes
+        -----
+        The distance is (erroneously) calculated as the sum of the distances between each pair of consecutive positions.
         """
 
         if output_path == 'Default':
-            output_path = f"to_be_uploaded/{self.video_name}-graphs/"
+            output_path = f"to_be_uploaded/{self.video_name}-graphs/distance_graph.png"
 
         if output_path is not None:
-            ensure_directory_exists(output_path)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         plt.figure(figsize=figsize)
 
@@ -429,25 +483,41 @@ class CsvAnalyzer:
         plt.legend()
 
         if output_path is not None:
-            plt.savefig(f"{output_path}distance_graph.png", bbox_inches='tight')
+            plt.savefig(output_path, bbox_inches='tight')
         else:
             plt.show()
 
 
     def create_videos(self, output_path = 'Default', field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05):
         #TODO See output_path when None...
-        """
-        Create a video showing the heatmap of the players over time.
-        output_path: if None, the video will be shown instead of saved. 
-        trace: number of frame after which the trace fade away. If 0, the trace will never fade.
-        alpha: transparency of the trace
+        """Create a video showing the heatmap of the players over time.
+
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the video. If None, the video will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-heatmaps/".
+        field_height : int, optional
+            Height of the field in pixels. Defaults to 800.
+        draw_net : bool, optional
+            Whether to draw the net on the field. Defaults to False.
+        speed_factor : int, optional
+            Factor by which to speed up the video. Defaults to 2.
+        trace : int, optional
+            Number of frames after which the trace fades away
+        alpha : float, optional
+            Transparency of the trace. Defaults to 0.05.
+
+        Notes
+        -----
+        The video will be saved as "player{i}.mp4" for each player and "all_players.mp4" for all players.
         """
 
         if output_path == 'Default':
             output_path = f"to_be_uploaded/{self.video_name}-heatmaps/"
 
         if output_path is not None:
-            ensure_directory_exists(output_path)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
         bg_color = (209, 186, 138)
         players_color=[(0,255,255), (0,255,0), (0,0,255), (255,0,0)]
@@ -552,12 +622,18 @@ class CsvAnalyzer:
         out_singles[3].release()
         out_all.release()
 
-
     def create_graphs(self, output_path = 'Default', figsize=(8, 6)):
+        """Create both the speed and the distance graphs showing the speed and distance of each player over time.
+        
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the graphs. If None, the graphs will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-graphs/".
+        figsize : tuple, optional
+            Size of the figure. Defaults to (8, 6).
         """
-        Create both the speed and the distance graphs showing the speed and distance of each player over time.
-        output_path: if is None, the graphs will be shown instead of saved.
-        """
+
         self.create_speed_graph(output_path, figsize)
         self.create_distance_graph(output_path, figsize)
     
@@ -568,11 +644,27 @@ class CsvAnalyzer:
                                         field_height = 800, 
                                         speed_factor = 2, 
                                         trace = 0):
+        """Create both video and final image of the heatmap for each player, containing also distance and speed data.
+
+        Parameters
+        ----------
+        output_path : str, optional
+            Path where to save the heatmaps and the video. If None, the heatmaps and the video will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-heatmaps/".
+        alpha : float, optional
+            Transparency of the player positions. Defaults to 0.05.
+        colors : list, optional
+            List of colors to use for each player. Defaults to yellow, green, red, blue.
+        draw_net : bool, optional
+            Whether to draw the net on the field. Defaults to False.
+        field_height : int, optional
+            Height of the field in pixels. Defaults to 800.
+        speed_factor : int, optional
+            Factor by which to speed up the video. Defaults to 2.
+        trace : int, optional
+            Number of frames after which the trace fades away
         """
-        Create both video and final image of the heatmap for each player, containing also distance and speed data.
-        output_path: if None, the heatmaps will be shown instead of saved.
-        trace: number of frame after which the trace fade away. If 0, the trace will never fade.
-        """
+
         self.create_heatmaps(output_path, alpha, colors, draw_net)
         self.create_videos(output_path, field_height, draw_net, speed_factor, trace, alpha)
     

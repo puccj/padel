@@ -1,27 +1,29 @@
 import cv2
 from ultralytics import YOLO
 import mediapipe as mp
+import concurrent.futures
+
 import time
-
-COMPLEXITY = 2
-
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
-pose = mp_pose.Pose(
-    static_image_mode=False, 
-    model_complexity=COMPLEXITY, 
-    enable_segmentation=False, 
-    min_detection_confidence=0.5, 
-    min_tracking_confidence=0.5
-)
+pose = mp_pose.Pose(static_image_mode=False, model_complexity=2, enable_segmentation=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
 
 # Load YOLOv8 model (using PyTorch)
 model = YOLO('yolov8n.pt')  # 'yolov8n.pt' is the smallest and fastest version
 
 # Open video capture
 cap = cv2.VideoCapture('input_videos/31-08-2024-10-27.mp4')
+
+def estimate_pose(cropped_frame):
+    """
+    Function to process pose estimation for a cropped frame (person's bounding box).
+    """
+    cropped_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+    results_pose = pose.process(cropped_rgb)
+    return results_pose
 
 def draw_pose(frame, y1, x1, y2, x2, results_pose):
     """
@@ -45,8 +47,10 @@ def draw_pose(frame, y1, x1, y2, x2, results_pose):
 times = []
 border = 10  # Border around the person's bounding box to include more context
 
+# set starting of the video to 30 seconds
 cap.set(cv2.CAP_PROP_POS_MSEC, 30000)
 
+# Start video processing
 while cap.isOpened():
 
     start_time = time.time()
@@ -56,35 +60,31 @@ while cap.isOpened():
         break
 
     # Use YOLOv8 for detecting people
-    # results = model.track(frame, persist=True)[0]
     results = model(frame)[0]
     id_name_dict = results.names
 
     # List to store threads (or futures)
     futures = []
 
-    # Extract bounding boxes for detected people
-    for box in results.boxes:  # results.pred[0] gives the detections in a frame
-        object_cls_id = box.cls.tolist()[0]
-        
-        if id_name_dict[object_cls_id] != "person":
-            continue
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for box in results.boxes:
+            object_cls_id = box.cls.tolist()[0]
+            if id_name_dict[object_cls_id] != "person":
+                continue
 
-        x1, y1, x2, y2 = box.xyxy[0]  # xyxy format means x_min y_min , x_max y_max
+            x1, y1, x2, y2 = box.xyxy[0]  # xyxy format means x_min, y_min, x_max, y_max
 
-        # Pose estimation only on lower players
-        if y2 < 300:
-            continue
+            if y2 < 300:
+                continue
 
-        # cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            # cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
 
-        # Apply MediaPipe Pose on the detected person
-        cropped_frame = frame[int(y1-border):int(y2+border), int(x1-border):int(x2+border)]
-        cropped_rgb = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
-        results_pose = pose.process(cropped_rgb)
-        futures.append((results_pose, (x1,y1,x2,y2)))
+            # Crop the person and submit the task to the thread pool
+            cropped_frame = frame[int(y1-border):int(y2+border), int(x1-border):int(x2+border)]
+            future = executor.submit(estimate_pose, cropped_frame)
+            futures.append((future, (x1, y1, x2, y2)))  # Save future and bounding box coords for later use
 
-        # frame = draw_pose(frame, y1, x1, y2, x2, results_pose)
+            # frame = draw_pose(frame, y1, x1, y2, x2, future.result())
 
     end_time = time.time()
     frame_time = end_time - start_time
@@ -99,6 +99,7 @@ while cap.isOpened():
 # Calculate and display the average frame processing time
 avg_time = sum(times) / len(times)
 print(f"Average frame processing time: {avg_time:.4f} seconds")
+
 
 cap.release()
 cv2.destroyAllWindows()

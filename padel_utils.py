@@ -2,19 +2,6 @@ import os
 import numpy as np
 import cv2 as cv
 
-def ensure_directory_exists(file_path):
-    # Extract the directory from the given file path
-    directory = os.path.dirname(file_path)
-    
-    # If directory is empty, don't attempt to create it
-    if not directory:
-        return
-    
-    # Check if the directory exists
-    if not os.path.exists(directory):
-        # Create the directory if it does not exist
-        os.makedirs(directory)
-
 def get_foot_position(bbox):
     x1, y1, x2, y2 = bbox
     return (int((x1 + x2) / 2), y2)
@@ -24,10 +11,6 @@ def get_feet_positions(bboxes):
 
 def get_distance(p1,p2):
     return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
-
-def get_centroid(bbox):     # Not used
-    x1, y1, x2, y2 = bbox
-    return ((x1 + x2) / 2, (y1 + y2) / 2)
 
 def draw_bboxes(frame, player_dict, show_id = False):
     if player_dict is None or not player_dict:
