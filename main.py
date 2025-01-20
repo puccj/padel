@@ -10,8 +10,8 @@ def main ():
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
     analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate_matrix=False, save_interval=200)
 
-    out_video, fps, out_csvs = analyzer.process(method=PadelAnalyzer.Model.ACCURATE, debug=True)
-    # analyzer.process_all(method=PadelAnalyzer.Method.FAST)
+    out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, debug=True)
+    # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
 
     for csv in out_csvs:
         csv_analyzer = CsvAnalyzer(csv, fps)

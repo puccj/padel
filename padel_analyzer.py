@@ -11,7 +11,8 @@ import numpy as np
 import csv
 
 from player_tracker import PlayerTracker
-from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes
+from ball_tracker import BallTracker
+from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes, draw_ball
 
 # TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
@@ -130,13 +131,14 @@ class PadelAnalyzer:
         
         # Choosing model
         if model == PadelAnalyzer.Model.ACCURATE:
-            model = 'yolov8x'
+            model = 'models/yolov8x'
         elif model == PadelAnalyzer.Model.MEDIUM:
-            model = 'yolov8m'
+            model = 'models/yolov8m'
         elif model == PadelAnalyzer.Model.FAST:
-            model = 'yolov8n'
+            model = 'models/yolov8n'
 
         player_tracker = PlayerTracker(model_path=model)
+        ball_tracker = BallTracker(model_path='models/ball_model.pt')
         all_frame_data = [None] * self.save_interval
         
 
@@ -164,17 +166,23 @@ class PadelAnalyzer:
                     longer_90 = True
                     print("Warning: last period longer than 30 minutes")
             
-            # Detect players
+            # Detect players and ball
             detected_dict = player_tracker.detect(frame)
+            balls = ball_tracker.detect(frame)
+
             # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
             player_dict = self._calculate_positions(detected_dict)
+            ball_positions = self._calculate_ball_positions(balls)
+            
             # Choose best 4 players to show them in the video (but all are saved in the csv)
             best_player_dict = player_tracker.choose_best_players(player_dict)
 
             # Record and save data every save_interval frames
-            frame_data = frame_data = {
+            frame_data = {
                 'frame_num': frame_num,
+                'balls': ball_positions,
                 'players': player_dict #or {} # If player_dict is None, use an empty dictionary
+
             }
             # Instead of deleting, I'll just save starting all over
             all_frame_data[frame_num % self.save_interval] = frame_data
@@ -184,6 +192,7 @@ class PadelAnalyzer:
             # Draw things and output video
             if debug:
                 frame = draw_bboxes(frame, player_dict, show_id=True)
+                frame = draw_ball(frame, balls)
                 frame = draw_mini_court(frame, player_dict)
             else:
                 frame = draw_bboxes(frame, best_player_dict, show_id=False)
@@ -353,13 +362,28 @@ class PadelAnalyzer:
         PlayerInfo = namedtuple('PlayerInfo', ['bbox', 'position'])
 
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
+    
+    def _calculate_ball_positions(self, balls):
+        """ 
+        Calculate positions (in meter) of balls.
+        Given the detected balls, return a list of positions.
+        """
+        if not balls:
+            return []
+        
+        balls = np.array(balls)
+        balls = balls[:, :2] + (balls[:, 2:] - balls[:, :2]) / 2
+        balls = balls.reshape(-1, 1, 2)
+        positions = cv.perspectiveTransform(balls, self.perspective_matrix).reshape(-1, 2)
+        
+        return positions
 
     def _save_data_to_csv(self, data, path):
         with open(path, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             
             for frame_data in data:
-                row = [frame_data['frame_num']]
+                row = [frame_data['frame_num'], frame_data['balls']]
                 for player_id, player_info in frame_data['players'].items():
                     row.append(player_id)
                     row.append(player_info.position)

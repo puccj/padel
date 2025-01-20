@@ -26,6 +26,16 @@ def draw_bboxes(frame, player_dict, show_id = False):
     
     return frame
 
+def draw_ball(frame, ball_list):
+    if ball_list is None or not ball_list:
+        return frame
+    
+    for ball in ball_list:
+        x1, y1, x2, y2 = ball
+        cv.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 0), 2)
+    
+    return frame
+
 def draw_mini_court(frame, player_dict = None):
     # Variables
     #zoom = 25
