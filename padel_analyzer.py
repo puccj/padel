@@ -69,12 +69,14 @@ class PadelAnalyzer:
         os.makedirs(os.path.dirname(self.output_video_path), exist_ok=True)
         os.makedirs(os.path.dirname(self.output_csv_paths[0]), exist_ok=True)
 
-        # Load fps and matrix
+        # Load parmeters (fps, perspective and fisheye matrices)
         if recalculate_matrix:
             self.fps = self._calculate_fps()
+            self.fisheye_matrix, self.distortion = self._calculate_fisheye_params()
             self.perspective_matrix = self._calculate_perspective_matrix()
         else:
             self.fps = self._load_fps()
+            self.fisheye_matrix, self.distortion = self._load_fisheye_params()
             self.perspective_matrix = self._load_perspective_matrix()
         
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
@@ -222,8 +224,6 @@ class PadelAnalyzer:
                 return float(content)
         except FileNotFoundError:
             fps = self._calculate_fps()
-            with open(path, 'w') as file:
-                file.write(str(fps))
             return fps
         except ValueError:
             print(f"PADEL ERROR: File path {path} does not contain a valid number, maybe it's corructed. Delete it in order to re-create it.")
@@ -246,7 +246,63 @@ class PadelAnalyzer:
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
         fps = num_frames / (end-start)
+
+        # Save the calculated fps
+        path = self.cam_name + '-fps.txt'
+        with open(path, 'w') as file:
+            file.write(str(fps))
+
         return fps
+    
+    def _load_fisheye_params(self):
+        path = self.cam_name + '-fisheye.txt'
+        parameters = {}
+
+        try:
+            with open(path, 'r') as file:
+                for line in file:
+                    # Split the line by '=' to separate key and value
+                    key, value = map(str.strip, line.strip().split('='))
+                    parameters[key] = float(value)  # Convert value to float
+        except FileNotFoundError:
+            return self._calculate_fisheye_params()
+
+        if not parameters:
+            raise ValueError("Error: No parameters found in the file.")
+
+        fx = parameters['fx']
+        fy = parameters['fy']
+        cx = parameters['cx']
+        cy = parameters['cy']
+        k1 = parameters['k1']
+        k2 = parameters['k2']
+        p1 = parameters['p1']
+        p2 = parameters['p2']
+        k3 = parameters['k3']
+
+        mtx = np.array(
+                        [[fx, 0., cx],
+                         [0., fy, cy],
+                         [0., 0., 1.]])   
+        dist = np.array([[k1, k2, p1, p2, k3]])
+
+        return mtx, dist
+    
+    def _calculate_fisheye_params(self):
+        # TODO: Calculate parameters automatically given some points or with checkerboard
+
+        from gui_calib import Fisheye
+
+        random.seed(time.time())
+        totalFrame = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT)) - 2
+        self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
+        ret, img = self.cap.read()
+    
+        path = self.cam_name + '-fisheye.txt'
+        fisheye = Fisheye(img)
+        mtx, dist = fisheye.fisheye_gui(save_path=path)
+
+        return mtx, dist
 
     def _load_perspective_matrix(self):
         path = self.cam_name + '-matrix.txt'
@@ -254,7 +310,6 @@ class PadelAnalyzer:
             matrix = np.loadtxt(path)
         except FileNotFoundError:
             matrix = self._calculate_perspective_matrix()
-            np.savetxt(path, matrix)
         return matrix
 
     def _onMouse(self, event, x, y, flags, param):
@@ -264,6 +319,8 @@ class PadelAnalyzer:
             self.mousePosition = (-2, -2)   # TODO: this does not work. Maybe change it to a key pressed
     
     def _calculate_perspective_matrix(self):
+        # TODO: use undistorted image (with fisheye correction) to calculate perspective matrix
+        
         self.mousePosition = (-1,-1)
         winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm."
         cv.namedWindow(winName)
@@ -344,6 +401,10 @@ class PadelAnalyzer:
 
         if self.file_opened:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
+
+        # Save the calculated matrix
+        path = self.cam_name + '-matrix.txt'
+        np.savetxt(path, perspMat)
 
         return perspMat
     

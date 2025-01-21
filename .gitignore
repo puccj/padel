@@ -10,3 +10,4 @@ __pycache__
 *.pt
 *-fps.txt
 *-matrix.txt
+*-fisheye.txt
