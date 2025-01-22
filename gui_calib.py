@@ -13,16 +13,16 @@ class Fisheye:
         self.img = img
 
     def get_track_vals(self):
-        WINDOW_NAME = self.WINDOW_NAME
-        fx = cv2.getTrackbarPos("fx",WINDOW_NAME)-1000
-        fy = cv2.getTrackbarPos("fy",WINDOW_NAME)-1000
-        cx = cv2.getTrackbarPos("cx",WINDOW_NAME)-1000
-        cy = cv2.getTrackbarPos("cy",WINDOW_NAME)-1000
-        k1 = (cv2.getTrackbarPos("k1",WINDOW_NAME)-1000)/1000
-        k2 = (cv2.getTrackbarPos("k2",WINDOW_NAME)-1000)/1000
-        p1 = (cv2.getTrackbarPos("p1",WINDOW_NAME)-1000)/1000
-        p2 = (cv2.getTrackbarPos("p2",WINDOW_NAME)-1000)/100000
-        k3 = (cv2.getTrackbarPos("k3",WINDOW_NAME)-1000)/10000
+        NAME = self.WINDOW_NAME
+        fx = cv2.getTrackbarPos("fx",NAME)-1000
+        fy = cv2.getTrackbarPos("fy",NAME)-1000
+        cx = cv2.getTrackbarPos("cx",NAME)-1000
+        cy = cv2.getTrackbarPos("cy",NAME)-1000
+        k1 = (cv2.getTrackbarPos("k1",NAME)-1000)/1000
+        k2 = (cv2.getTrackbarPos("k2",NAME)-1000)/1000
+        p1 = (cv2.getTrackbarPos("p1",NAME)-1000)/1000
+        p2 = (cv2.getTrackbarPos("p2",NAME)-1000)/100000
+        k3 = (cv2.getTrackbarPos("k3",NAME)-1000)/10000
         mtx = np.array(
                         [[fx   ,  0.,  cx],
                          [  0. ,  fy,  cy],
@@ -38,34 +38,33 @@ class Fisheye:
 
     def fisheye_gui(self, save_path=None):
         """GUI for fishe eye correction
-        Returns camera matrix and distortion coeffs
+        Save parameters if save_path is provided and returns camera matrix and distortion coeffs
         """
 
-        mtx = np.array(
-                        [[763.06533889,   0.  ,       320.42956613],
-                            [  0. ,        765.66818696, 267.88565043],
-                            [  0. ,          0.   ,        1.        ]])               
-        dist = np.array([[-0.06176994, -0.24929249,  0.00397634,  0.00001499,  1.75442713]])
+        mtx = np.array( [[897.,  0. , 653.],
+                         [  0., 973., 333.],
+                         [  0.,  0. ,  1. ]])
+        dist = np.array([[-0.43, -0.097,  -0.05,  0.00001,  0.0]])
         
-        [[fx   ,  a,  cx],
-         [  a ,  fy,  cy],
-         [  a ,  a,  a]] = mtx
-         
+        [[fx,  a, cx],
+         [ a, fy, cy],
+         [ a,  a,  a]] = mtx
+        
         [[k1, k2, p1, p2, k3]] = dist
-        #import pdb;pdb.set_trace()
-        WINDOW_NAME = self.WINDOW_NAME
-        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(WINDOW_NAME, 1000, 1000)
+        
+        NAME = self.WINDOW_NAME
+        cv2.namedWindow(NAME, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(NAME, 1000, 1000)
         cb = self.on_trackbar
-        cv2.createTrackbar("fx",WINDOW_NAME,int(1000+fx)       , 3000, cb)
-        cv2.createTrackbar("fy",WINDOW_NAME,int(1000+fy)       , 3000, cb)
-        cv2.createTrackbar("cx",WINDOW_NAME,int(1000+cx)       , 3000, cb)
-        cv2.createTrackbar("cy",WINDOW_NAME,int(1000+cy)       , 3000, cb)
-        cv2.createTrackbar("k1",WINDOW_NAME,int(1000+k1*1000)  , 2000, cb)
-        cv2.createTrackbar("k2",WINDOW_NAME,int(1000+k2*1000)  , 2000, cb)
-        cv2.createTrackbar("p1",WINDOW_NAME,int(1000+p1*1000)  , 2000, cb)
-        cv2.createTrackbar("p2",WINDOW_NAME,int(1000+p2*100000), 2000, cb)
-        cv2.createTrackbar("k3",WINDOW_NAME,int(1000+k3 )      , 2000, cb)
+        cv2.createTrackbar("fx",NAME,int(1000+fx)       , 3000, cb)
+        cv2.createTrackbar("fy",NAME,int(1000+fy)       , 3000, cb)
+        cv2.createTrackbar("cx",NAME,int(1000+cx)       , 3000, cb)
+        cv2.createTrackbar("cy",NAME,int(1000+cy)       , 3000, cb)
+        cv2.createTrackbar("k1",NAME,int(1000+k1*1000)  , 2000, cb)
+        cv2.createTrackbar("k2",NAME,int(1000+k2*1000)  , 2000, cb)
+        cv2.createTrackbar("p1",NAME,int(1000+p1*1000)  , 2000, cb)
+        cv2.createTrackbar("p2",NAME,int(1000+p2*100000), 2000, cb)
+        cv2.createTrackbar("k3",NAME,int(1000+k3 )      , 2000, cb)
 
         # Show some stuff
         self.on_trackbar(0)
@@ -76,18 +75,24 @@ class Fisheye:
         
         mtx, dist = self.get_track_vals()
         print('\nmtx:\n',mtx)
-        print('\ndist:\n',dist)
+        print('\ndist:\n',dist,'\n\n')
         # np.save('mtx.npy',mtx)
         # np.save('dist.npy',dist,'\n')
         # cv2.imwrite('corrected.png', self.dst)
 
         # Save the camera matrix and distortion coefficients to a file
         if save_path:
+            [[fx,  a, cx],
+            [ a, fy, cy],
+            [ a,  a,  a]] = mtx
+            [[k1, k2, p1, p2, k3]] = dist
+            
             parameters = {'fx':fx, 'fy':fy, 'cx':cx, 'cy':cy, 'k1':k1, 'k2':k2, 'p1':p1, 'p2':p2, 'k3':k3}
             with open(save_path, 'w') as file:
                 for key, value in parameters.items():
                     file.write(f"{key} = {value}\n")  # Write key-value pairs in 'key = value' format
     
+        cv2.destroyAllWindows()
         return mtx, dist
 
 if __name__ == '__main__':

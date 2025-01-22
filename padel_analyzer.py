@@ -91,7 +91,7 @@ class PadelAnalyzer:
             with open(csv_path, 'w', newline='') as csvfile:
                 pass    # Create the file (erasing it if it already exists)
         
-    def process(self, model = Model.ACCURATE, debug = False):
+    def process(self, model = Model.ACCURATE, show = False, debug = False):
         """Process all the frames of the video, detecting players and saving their positions in a CSV file.
         3 CSV files are created, one for each period of the game.
         
@@ -99,6 +99,8 @@ class PadelAnalyzer:
         ----------
         model : Model, optional
             The YOLO model to use for player detection. Options are Model.ACCURATE, Model.MEDIUM, and Model.FAST. Default is Model.ACCURATE.
+        show : bool, optional
+            If True, the video will be displayed while processing. Default is False.
         debug : bool, optional
             If True, additional debug information will be drawn on the video, such as player IDs and the mini court. Default is False.
         
@@ -201,6 +203,10 @@ class PadelAnalyzer:
                 frame = draw_mini_court(frame, best_player_dict)
             # frame = draw_stats(frame, frame_data)     Can't draw stats because only position is saved (other data to be calculated during postprocess)
 
+            if show:
+                cv.imshow('Video', frame)
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    break
             out.write(frame)
         
             frame_num += 1
@@ -344,7 +350,8 @@ class PadelAnalyzer:
                 self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
                 success, original = self.cap.read()
             while self.file_opened and key != ord('n') and (key != 32 or count < 4):
-                frame = original.copy()
+                # Use un-fisheye image
+                frame = cv.undistort(original, self.fisheye_matrix, self.distortion, None, None)
                 if self.mousePosition[0] == -2:  # right click on mouse
                     if count > 0:
                         count -= 1

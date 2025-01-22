@@ -1,16 +1,13 @@
 from padel_analyzer import PadelAnalyzer
 from csv_analyzer import CsvAnalyzer
+import argparse
 
-def main ():
-    input_video_path = "input_videos/input_video.mp4"
-    # output_video_path = "output_videos/output_video.mp4"
-    # csv_path = "output_data/prova.csv"
-    cam_name = "test"
+def main (input_video_path, cam_name='test', recalculate=False, show_video=False, debug=False):
 
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
-    analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate_matrix=False, save_interval=200)
+    analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate_matrix=recalculate, save_interval=200)
 
-    out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, debug=True)
+    out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, show=show_video, debug=debug)
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
 
     for csv in out_csvs:
@@ -23,4 +20,12 @@ def main ():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--path', type=str, default='input_videos/input_video.mp4', help='input image path')
+    parser.add_argument('-n', '--name', type=str, default='test', help='camera name')
+    parser.add_argument('-r', '--recalculate', action=argparse.BooleanOptionalAction, help='recalculate camera matrices and fps')
+    parser.add_argument('-s', '--show', action=argparse.BooleanOptionalAction, help='show video')
+    parser.add_argument('-d', '--debug',action=argparse.BooleanOptionalAction, help='debug mode')
+    args = parser.parse_args()
+    
+    main(args.path, args.name, args.recalculate, args.show, args.debug)
