@@ -11,3 +11,4 @@ __pycache__
 *-fps.txt
 *-matrix.txt
 *-fisheye.txt
+calibration/*
