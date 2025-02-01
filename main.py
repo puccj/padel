@@ -3,9 +3,8 @@ from csv_analyzer import CsvAnalyzer
 import argparse
 
 def main (input_video_path, cam_name='test', recalculate=False, show_video=False, debug=False):
-
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
-    analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate_matrix=recalculate, save_interval=200)
+    analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate=recalculate, save_interval=200)
 
     out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, show=show_video, debug=debug)
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)

@@ -12,7 +12,7 @@ import csv
 
 from player_tracker import PlayerTracker
 from ball_tracker import BallTracker
-from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes, draw_ball
+from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes, draw_ball, transform_points
 
 # TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
@@ -22,7 +22,7 @@ class PadelAnalyzer:
         MEDIUM = 2
         ACCURATE = 3
 
-    def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate_matrix = False):
+    def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate = False):
         """
         Initializes the PadelAnalyzer class.
 
@@ -38,8 +38,8 @@ class PadelAnalyzer:
             Path to save the output CSV files. Defaults to "output_data/{video_name}-period{1,2,3}.csv".
         save_interval : int, optional
             Interval at which data is saved. Defaults to 100.
-        recalculate_matrix : bool, optional
-            Flag to recalculate the perspective matrix. Defaults to False.
+        recalculate : bool, optional
+            Flag to recalculate fps, and perspective matrix. Defaults to False.
 
         Raises
         ------
@@ -63,21 +63,21 @@ class PadelAnalyzer:
 
         self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analyzed.mp4"
         csv_name = output_csv_path or f"output_data/{self.video_name}"
-        
         self.output_csv_paths = [csv_name + '-period1.csv', csv_name + '-period2.csv', csv_name + '-period3.csv']
-
         os.makedirs(os.path.dirname(self.output_video_path), exist_ok=True)
         os.makedirs(os.path.dirname(self.output_csv_paths[0]), exist_ok=True)
 
+        self.mousePosition = None  # mouse position for debug mode
+
         # Load parmeters (fps, perspective and fisheye matrices)
-        if recalculate_matrix:
+        self.K, self.D = self._load_fisheye_params()  # fisheye matrix and distortion coefficients (K, D) are never re-calculated
+
+        if recalculate:
             self.fps = self._calculate_fps()
-            self.fisheye_matrix, self.distortion = self._calculate_fisheye_params()
-            self.perspective_matrix = self._calculate_perspective_matrix()
+            self.H = self._calculate_perspective_matrix()
         else:
             self.fps = self._load_fps()
-            self.fisheye_matrix, self.distortion = self._load_fisheye_params()
-            self.perspective_matrix = self._load_perspective_matrix()
+            self.H = self._load_perspective_matrix()
         
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
         self.mean_interval = int(1*self.fps)
@@ -92,7 +92,8 @@ class PadelAnalyzer:
                 pass    # Create the file (erasing it if it already exists)
         
     def process(self, model = Model.ACCURATE, show = False, debug = False):
-        """Process all the frames of the video, detecting players and saving their positions in a CSV file.
+        """
+        Process all the frames of the video, detecting players and saving their positions in a CSV file.
         3 CSV files are created, one for each period of the game.
         
         Parameters
@@ -197,7 +198,13 @@ class PadelAnalyzer:
             if debug:
                 frame = draw_bboxes(frame, player_dict, show_id=True)
                 frame = draw_ball(frame, balls)
-                frame = draw_mini_court(frame, player_dict)
+                if show and self.mousePosition is not None:
+                    mouse = transform_points(np.float32([self.mousePosition]), self.K, self.D, self.H)[0]
+                    cv.namedWindow('Video')
+                    cv.setMouseCallback('Video', self._onMouse)
+                else:
+                    mouse = None
+                frame = draw_mini_court(frame, player_dict, mouse)
             else:
                 frame = draw_bboxes(frame, best_player_dict, show_id=False)
                 frame = draw_mini_court(frame, best_player_dict)
@@ -271,6 +278,7 @@ class PadelAnalyzer:
                     key, value = map(str.strip, line.strip().split('='))
                     parameters[key] = float(value)  # Convert value to float
         except FileNotFoundError:
+            print("Fisheye parameters not found. You can follow the calibrate.py script to calculate them or continue to determine them manually.")
             return self._calculate_fisheye_params()
 
         if not parameters:
@@ -284,18 +292,17 @@ class PadelAnalyzer:
         k2 = parameters['k2']
         p1 = parameters['p1']
         p2 = parameters['p2']
-        k3 = parameters['k3']
 
         mtx = np.array(
                         [[fx, 0., cx],
                          [0., fy, cy],
                          [0., 0., 1.]])   
-        dist = np.array([[k1, k2, p1, p2, k3]])
+        dist = np.array([[k1, k2, p1, p2]])
 
         return mtx, dist
     
     def _calculate_fisheye_params(self):
-        # TODO: Calculate parameters automatically given some points or with checkerboard
+        print("--- Calculating fisheye parameters ---\n")
 
         from gui_calib import Fisheye
 
@@ -325,9 +332,7 @@ class PadelAnalyzer:
             self.mousePosition = (-2, -2)   # TODO: this does not work. Maybe change it to a key pressed
     
     def _calculate_perspective_matrix(self):
-        # TODO: use undistorted image (with fisheye correction) to calculate perspective matrix
-        
-        self.mousePosition = (-1,-1)
+        self.mousePosition = None
         winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm."
         cv.namedWindow(winName)
         cv.setMouseCallback(winName, self._onMouse)
@@ -350,19 +355,23 @@ class PadelAnalyzer:
                 self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
                 success, original = self.cap.read()
             while self.file_opened and key != ord('n') and (key != 32 or count < 4):
-                # Use un-fisheye image
-                frame = cv.undistort(original, self.fisheye_matrix, self.distortion, None, None)
-                if self.mousePosition[0] == -2:  # right click on mouse
-                    if count > 0:
-                        count -= 1
-                    self.mousePosition = (-1, -1)
-                elif self.mousePosition[0] != -1:  # if mouse has been clicked
+                # Use undistorted image
+                size = (int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
+                map1, map2 = cv.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.K, size, cv.CV_16SC2)
+                frame = cv.remap(original, map1, map2, interpolation=cv.INTER_LINEAR, borderMode=cv.BORDER_CONSTANT)
+                # frame = cv.undistort(original, self.fisheye_matrix, self.distortion, None, None)
+
+                # if self.mousePosition[0] == -2:  # right click on mouse
+                #     if count > 0:
+                #         count -= 1
+                #     self.mousePosition = (-1, -1)
+                if self.mousePosition is not None:  # if mouse has been clicked
                     if count >= 4:  # if user is trying to add fifth point, break
                         key = ord(' ')  # space key
                         break
                     angles.append(self.mousePosition)
                     count += 1
-                    self.mousePosition = (-1, -1)
+                    self.mousePosition = None
 
                 key = cv.waitKey(5)
                 if key == ord('q'):
@@ -417,16 +426,16 @@ class PadelAnalyzer:
     
     def _calculate_positions(self, detected_dict):
         """ 
-        Calculate positions (in meter) of players.
+        Calculate positions (in meter) of players, applying fish-eye correction and perspective transformation.
         Given the detected dictionary {ID, bbox}, return {ID, (bbox, position)}
         """
         if not detected_dict:
             return {}
         
         bboxes = [box for box in detected_dict.values()]
-        # Reshape feet positions to the required shape (n, 1, 2) (the extra 1 required from perspectiveTransform)
-        feet = get_feet_positions(bboxes).reshape(-1, 1, 2) 
-        positions = cv.perspectiveTransform(feet, self.perspective_matrix).reshape(-1,2)    # reshape back to (n,2)
+        feet = get_feet_positions(bboxes)
+        positions = transform_points(feet, self.K, self.D, self.H)
+
         PlayerInfo = namedtuple('PlayerInfo', ['bbox', 'position'])
 
         return {id: PlayerInfo(detected_dict[id], positions[i]) for i, id in enumerate(detected_dict)}
@@ -440,9 +449,8 @@ class PadelAnalyzer:
             return []
         
         balls = np.array(balls)
-        balls = balls[:, :2] + (balls[:, 2:] - balls[:, :2]) / 2
-        balls = balls.reshape(-1, 1, 2)
-        positions = cv.perspectiveTransform(balls, self.perspective_matrix).reshape(-1, 2)
+        balls = balls[:, :2] + (balls[:, 2:] - balls[:, :2]) / 2    #TODO: WHY?
+        positions = transform_points(balls, self.K, self.D, self.H)
         
         return positions
 

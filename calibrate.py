@@ -63,7 +63,22 @@ rms, _, _, _, _ = \
         calibration_flags,
         (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6)
     )
+
+[[fx,  a, cx],
+[ a, fy, cy],
+[ a,  a,  a]] = K
+[[k1], [k2], [p1], [p2]] = D
+
 print("Found " + str(N_OK) + " valid images for calibration")
 print("DIM=" + str(_img_shape[::-1]))
 print("K=np.array(" + str(K.tolist()) + ")")
 print("D=np.array(" + str(D.tolist()) + ")")
+print("fx = " + str(fx))
+print("fy = " + str(fy))
+print("cx = " + str(cx))
+print("cy = " + str(cy))
+print("k1 = " + str(k1))
+print("k2 = " + str(k2))
+print("p1 = " + str(p1))
+print("p2 = " + str(p2))
+print("k3 = 0.0")

@@ -3,14 +3,47 @@ import numpy as np
 import cv2 as cv
 
 def get_foot_position(bbox):
+    """Returns the foot position of a player given the bounding box"""
     x1, y1, x2, y2 = bbox
     return (int((x1 + x2) / 2), y2)
 
 def get_feet_positions(bboxes):
+    """Returns the foot positions of a list of players given the bounding boxes"""
     return np.float32([get_foot_position(bbox) for bbox in bboxes])
 
 def get_distance(p1,p2):
     return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
+
+def transform_points(points, K=None, D=None, H=None):
+    """
+    Undistort and/or apply perspective transformation to a list of points.
+    If K and D are None, only perspective transformation is applied.
+    If H is None, only undistortion is applied.
+    
+    Parameters
+    ----------
+    points : np.array
+        List of points to transform
+    K : np.array (3x3)
+        Camera fisheye matrix (intrinsic parameters)
+    D : np.array (1x5)
+        Distortion coefficients (radial and tangential)
+    H : np.array (3x3)
+        Homography matrix (perspective transformation)
+    Returns
+    -------
+    np.array"""
+
+    # Reshape feet positions to the required shape (n, 1, 2) (the extra 1 required for transformations)
+    result = points.reshape(-1, 1, 2)
+
+    if K is not None and D is not None:
+        result = cv.fisheye.undistortPoints(result, K, D, None, K)
+
+    if H is not None:
+        result = cv.perspectiveTransform(result, H)
+        
+    return result.reshape(-1,2)    # reshape back to (n,2)
 
 def draw_bboxes(frame, player_dict, show_id = False):
     if player_dict is None or not player_dict:
@@ -36,7 +69,7 @@ def draw_ball(frame, ball_list):
     
     return frame
 
-def draw_mini_court(frame, player_dict = None):
+def draw_mini_court(frame, player_dict = None, mouse_pos = None):
     # Variables
     #zoom = 25
     zoom = int(frame.shape[0] / 40)  #height of frame/40
@@ -75,5 +108,9 @@ def draw_mini_court(frame, player_dict = None):
         #     id = id % 4
         # cv.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, players_colors[id], 3, cv.LINE_AA)
         cv.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, [0,0,255], 3, cv.LINE_AA)
+
+    # Draw mouse position
+    if mouse_pos is not None:
+        cv.circle(frame, (int(mouse_pos[0]*zoom+field_pos[0]),int(mouse_pos[1]*zoom+field_pos[1])), 1, [0,255,0], 3, cv.LINE_AA)
 
     return frame
