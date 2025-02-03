@@ -302,7 +302,7 @@ class PadelAnalyzer:
         return mtx, dist
     
     def _calculate_fisheye_params(self):
-        print("--- Calculating fisheye parameters ---\n")
+        print("\n--- Calculating fisheye parameters ---\n")
 
         from gui_calib import Fisheye
 

@@ -41,10 +41,10 @@ class Fisheye:
         Save parameters if save_path is provided and returns camera matrix and distortion coeffs
         """
 
-        mtx = np.array( [[897.,  0. , 653.],
-                         [  0., 973., 333.],
-                         [  0.,  0. ,  1. ]])
-        dist = np.array([[-0.43, -0.097,  -0.05,  0.00001,  0.0]])
+        mtx = np.array( [[482.33371165083673,         0.       , 640.5263855643664 ],
+                         [         0.       , 476.5974871231719, 365.35509460062445],
+                         [         0.       ,         0.       ,  1.               ]])
+        dist = np.array([[-0.05232771734313145, 0.16777043123166238,  -0.24699992577326232,  0.11441728580428522,  0.0]])
         
         [[fx,  a, cx],
          [ a, fy, cy],

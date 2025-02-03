@@ -3,6 +3,11 @@ from csv_analyzer import CsvAnalyzer
 import argparse
 
 def main (input_video_path, cam_name='test', recalculate=False, show_video=False, debug=False):
+    input_video_path = 'input_videos/31-08-2024-10-27.mp4'
+    # output_video_path = "output_videos/output_video.mp4"
+    # csv_path = "output_data/prova.csv"
+    cam_name = "31-08"
+    
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
     analyzer = PadelAnalyzer(input_video_path, cam_name, recalculate=recalculate, save_interval=200)
 
