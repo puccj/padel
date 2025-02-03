@@ -11,6 +11,7 @@ class Fisheye:
     def __init__(self, img):
         self.WINDOW_NAME = 'cam calib'
         self.img = img
+        self.size = img.shape[:2][::-1]
 
     def get_track_vals(self):
         NAME = self.WINDOW_NAME
@@ -21,18 +22,19 @@ class Fisheye:
         k1 = (cv2.getTrackbarPos("k1",NAME)-1000)/1000
         k2 = (cv2.getTrackbarPos("k2",NAME)-1000)/1000
         p1 = (cv2.getTrackbarPos("p1",NAME)-1000)/1000
-        p2 = (cv2.getTrackbarPos("p2",NAME)-1000)/100000
-        k3 = (cv2.getTrackbarPos("k3",NAME)-1000)/10000
+        p2 = (cv2.getTrackbarPos("p2",NAME)-1000)/1000
+        
         mtx = np.array(
                         [[fx   ,  0.,  cx],
                          [  0. ,  fy,  cy],
                          [  0. ,  0.,  1.]])   
-        dist = np.array([[k1, k2, p1, p2, k3]])
+        dist = np.array([[k1, k2, p1, p2]])
         return mtx, dist   
 
     def on_trackbar(self,val):
         mtx, dist = self.get_track_vals()
-        self.dst = cv2.undistort(self.img, mtx, dist, None, None)
+        map1, map2 = cv2.fisheye.initUndistortRectifyMap(mtx, dist, np.eye(3), mtx, self.size, cv2.CV_16SC2)
+        self.dst = cv2.remap(self.img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
         cv2.imshow(self.WINDOW_NAME, self.dst)
         
 
@@ -44,13 +46,13 @@ class Fisheye:
         mtx = np.array( [[482.33371165083673,         0.       , 640.5263855643664 ],
                          [         0.       , 476.5974871231719, 365.35509460062445],
                          [         0.       ,         0.       ,  1.               ]])
-        dist = np.array([[-0.05232771734313145, 0.16777043123166238,  -0.24699992577326232,  0.11441728580428522,  0.0]])
+        dist = np.array([[-0.05232771734313145, 0.16777043123166238,  -0.24699992577326232,  0.11441728580428522]])
         
         [[fx,  a, cx],
          [ a, fy, cy],
          [ a,  a,  a]] = mtx
         
-        [[k1, k2, p1, p2, k3]] = dist
+        [[k1, k2, p1, p2]] = dist
         
         NAME = self.WINDOW_NAME
         cv2.namedWindow(NAME, cv2.WINDOW_NORMAL)
@@ -63,8 +65,7 @@ class Fisheye:
         cv2.createTrackbar("k1",NAME,int(1000+k1*1000)  , 2000, cb)
         cv2.createTrackbar("k2",NAME,int(1000+k2*1000)  , 2000, cb)
         cv2.createTrackbar("p1",NAME,int(1000+p1*1000)  , 2000, cb)
-        cv2.createTrackbar("p2",NAME,int(1000+p2*100000), 2000, cb)
-        cv2.createTrackbar("k3",NAME,int(1000+k3 )      , 2000, cb)
+        cv2.createTrackbar("p2",NAME,int(1000+p2*1000), 2000, cb)
 
         # Show some stuff
         self.on_trackbar(0)
@@ -85,9 +86,9 @@ class Fisheye:
             [[fx,  a, cx],
             [ a, fy, cy],
             [ a,  a,  a]] = mtx
-            [[k1, k2, p1, p2, k3]] = dist
+            [[k1, k2, p1, p2]] = dist
             
-            parameters = {'fx':fx, 'fy':fy, 'cx':cx, 'cy':cy, 'k1':k1, 'k2':k2, 'p1':p1, 'p2':p2, 'k3':k3}
+            parameters = {'fx':fx, 'fy':fy, 'cx':cx, 'cy':cy, 'k1':k1, 'k2':k2, 'p1':p1, 'p2':p2}
             with open(save_path, 'w') as file:
                 for key, value in parameters.items():
                     file.write(f"{key} = {value}\n")  # Write key-value pairs in 'key = value' format
