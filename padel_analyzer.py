@@ -230,7 +230,7 @@ class PadelAnalyzer:
     # --Helper "private" functions--
 
     def _load_fps(self):
-        path = self.cam_name + '-fps.txt'
+        path = os.path.join('parameters', self.cam_name + '-fps.txt')
         try:
             with open(path, 'r') as file:
                 content = file.read().strip()
@@ -245,30 +245,30 @@ class PadelAnalyzer:
 
     def _calculate_fps(self):
         fps = self.cap.get(cv.CAP_PROP_FPS)
-        if fps != 0:
-            return fps
+        if fps == 0:
         
-        #If the property is 0, try to calculate it in a different way
-        num_frames = 60
-        start = time.time()
-        for _ in range(num_frames):
-            ret, frame = self.cap.read()
-            if not ret:
-                break
-        end = time.time()
-        if self.file_opened:
-            self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
-        fps = num_frames / (end-start)
+            #If the property is 0, try to calculate it in a different way
+            num_frames = 60
+            start = time.time()
+            for _ in range(num_frames):
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
+            end = time.time()
+            if self.file_opened:
+                self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
+            fps = num_frames / (end-start)
 
         # Save the calculated fps
-        path = self.cam_name + '-fps.txt'
+        path = os.path.join('parameters', self.cam_name + '-fps.txt')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w') as file:
             file.write(str(fps))
 
         return fps
     
     def _load_fisheye_params(self):
-        path = self.cam_name + '-fisheye.txt'
+        path = os.path.join('parameters', self.cam_name + '-fisheye.txt')
         parameters = {}
 
         try:
@@ -311,14 +311,15 @@ class PadelAnalyzer:
         self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
         ret, img = self.cap.read()
     
-        path = self.cam_name + '-fisheye.txt'
+        path = os.path.join('parameters', self.cam_name + '-fisheye.txt')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         fisheye = Fisheye(img)
         mtx, dist = fisheye.fisheye_gui(save_path=path)
 
         return mtx, dist
 
     def _load_perspective_matrix(self):
-        path = self.cam_name + '-matrix.txt'
+        path = os.path.join('parameters', self.cam_name + '-matrix.txt')
         try:
             matrix = np.loadtxt(path)
         except FileNotFoundError:
@@ -419,7 +420,8 @@ class PadelAnalyzer:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
 
         # Save the calculated matrix
-        path = self.cam_name + '-matrix.txt'
+        path = os.path.join('parameters', self.cam_name + '-matrix.txt')
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         np.savetxt(path, perspMat)
 
         return perspMat

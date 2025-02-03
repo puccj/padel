@@ -1,14 +1,11 @@
 a.exe
 *test*
 .*
-parameters
+parameters/*
 to_be_uploaded/*
 input_videos
 output_*
 models/*
 __pycache__
 *.pt
-*-fps.txt
-*-matrix.txt
-*-fisheye.txt
 calibration/*
