@@ -58,13 +58,13 @@ class Fisheye:
         cv2.namedWindow(NAME, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(NAME, 1000, 1000)
         cb = self.on_trackbar
-        cv2.createTrackbar("fx",NAME,int(1000+fx)       , 3000, cb)
-        cv2.createTrackbar("fy",NAME,int(1000+fy)       , 3000, cb)
-        cv2.createTrackbar("cx",NAME,int(1000+cx)       , 3000, cb)
-        cv2.createTrackbar("cy",NAME,int(1000+cy)       , 3000, cb)
-        cv2.createTrackbar("k1",NAME,int(1000+k1*1000)  , 2000, cb)
-        cv2.createTrackbar("k2",NAME,int(1000+k2*1000)  , 2000, cb)
-        cv2.createTrackbar("p1",NAME,int(1000+p1*1000)  , 2000, cb)
+        cv2.createTrackbar("fx",NAME,int(1000+fx)     , 3000, cb)
+        cv2.createTrackbar("fy",NAME,int(1000+fy)     , 3000, cb)
+        cv2.createTrackbar("cx",NAME,int(1000+cx)     , 3000, cb)
+        cv2.createTrackbar("cy",NAME,int(1000+cy)     , 3000, cb)
+        cv2.createTrackbar("k1",NAME,int(1000+k1*1000), 2000, cb)
+        cv2.createTrackbar("k2",NAME,int(1000+k2*1000), 2000, cb)
+        cv2.createTrackbar("p1",NAME,int(1000+p1*1000), 2000, cb)
         cv2.createTrackbar("p2",NAME,int(1000+p2*1000), 2000, cb)
 
         # Show some stuff
