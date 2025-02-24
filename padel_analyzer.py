@@ -12,7 +12,7 @@ import csv
 
 from player_tracker import PlayerTracker
 from ball_tracker import BallTracker
-from padel_utils import get_feet_positions, draw_mini_court, draw_bboxes, draw_ball, transform_points
+from padel_utils import get_feet_positions, load_fisheye_params, transform_points, draw_bboxes, draw_ball, draw_mini_court
 
 # TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
@@ -72,7 +72,17 @@ class PadelAnalyzer:
         self.mousePosition = None  # mouse position for debug mode
 
         # Load parmeters (fps, perspective and fisheye matrices)
-        self.K, self.D = self._load_fisheye_params()  # fisheye matrix and distortion coefficients (K, D) are never re-calculated
+        fisheye_path = os.path.join('parameters', self.cam_name + '-fisheye.txt')
+        try:
+            self.K, self.D = load_fisheye_params(fisheye_path)  # fisheye matrix and distortion coefficients (K, D) are never re-calculated
+        except FileNotFoundError:
+            print("Fisheye parameters not found. You can follow the calibrate.py script to calculate them or continue to determine them manually.")
+            print("\n--- Calculating fisheye parameters ---\n")
+            from gui_calib import Fisheye
+            self.cap.set(cv.CAP_PROP_POS_FRAMES, 10)
+            ret, img = self.cap.read()
+            fisheye = Fisheye(img)
+            self.K, self.D = fisheye.fisheye_gui(save_path=fisheye_path)
 
         if recalculate:
             self.fps = self._calculate_fps()
@@ -268,57 +278,6 @@ class PadelAnalyzer:
             file.write(str(fps))
 
         return fps
-    
-    def _load_fisheye_params(self):
-        path = os.path.join('parameters', self.cam_name + '-fisheye.txt')
-        parameters = {}
-
-        try:
-            with open(path, 'r') as file:
-                for line in file:
-                    # Split the line by '=' to separate key and value
-                    key, value = map(str.strip, line.strip().split('='))
-                    parameters[key] = float(value)  # Convert value to float
-        except FileNotFoundError:
-            print("Fisheye parameters not found. You can follow the calibrate.py script to calculate them or continue to determine them manually.")
-            return self._calculate_fisheye_params()
-
-        if not parameters:
-            raise ValueError("Error: No parameters found in the file.")
-
-        fx = parameters['fx']
-        fy = parameters['fy']
-        cx = parameters['cx']
-        cy = parameters['cy']
-        k1 = parameters['k1']
-        k2 = parameters['k2']
-        p1 = parameters['p1']
-        p2 = parameters['p2']
-
-        mtx = np.array(
-                        [[fx, 0., cx],
-                         [0., fy, cy],
-                         [0., 0., 1.]])   
-        dist = np.array([[k1, k2, p1, p2]])
-
-        return mtx, dist
-    
-    def _calculate_fisheye_params(self):
-        print("\n--- Calculating fisheye parameters ---\n")
-
-        from gui_calib import Fisheye
-
-        random.seed(time.time())
-        totalFrame = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT)) - 2
-        self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
-        ret, img = self.cap.read()
-    
-        path = os.path.join('parameters', self.cam_name + '-fisheye.txt')
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        fisheye = Fisheye(img)
-        mtx, dist = fisheye.fisheye_gui(save_path=path)
-
-        return mtx, dist
 
     def _load_perspective_matrix(self, second_camera=False):
         path = os.path.join('parameters', self.cam_name + '-matrix.txt')

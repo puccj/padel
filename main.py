@@ -21,7 +21,7 @@ def main (input_video_path, cam_name='test', second_camera=False, recalculate=Fa
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, default='input_videos/input_video.mp4', help='input image path')
+    parser.add_argument('-p', '--path', type=str, default='input_videos/test.mp4', help='input image path')
     parser.add_argument('-n', '--name', type=str, default='test', help='camera name')
     parser.add_argument('-r', '--recalculate', action=argparse.BooleanOptionalAction, help='recalculate camera matrices and fps')
     parser.add_argument('-s', '--show',  action=argparse.BooleanOptionalAction, help='show video')

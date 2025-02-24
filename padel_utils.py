@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import cv2 as cv
+import random
+import time
 
 def get_foot_position(bbox):
     """Returns the foot position of a player given the bounding box"""
@@ -14,6 +16,59 @@ def get_feet_positions(bboxes):
 def get_distance(p1,p2):
     return ((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2)**0.5
 
+
+def load_fisheye_params(path):
+    """
+    Load fisheye parameters from a file and return the camera intrinsic matrix (K) and distortion coefficients (D).
+    If the file is not found, fisheye parameters are calculated using gui_calib.py.
+
+    Parameters
+    ----------
+    path : str
+        Path to the file containing the fisheye parameters.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file is not found.
+    ValueError
+        If no parameters are found in the file.
+
+    Returns
+    -------
+    K : np.array (3x3)
+        Camera matrix (intrinsic parameters)
+    D : np.array (1x4)
+        Distortion coefficients (radial and tangential)
+    """
+    parameters = {}
+    
+    with open(path, 'r') as file:
+        for line in file:
+            # Split the line by '=' to separate key and value
+            key, value = map(str.strip, line.strip().split('='))
+            parameters[key] = float(value)  # Convert value to float
+
+    if not parameters:
+        raise ValueError("Error: No parameters found in the file.")
+
+    fx = parameters['fx']
+    fy = parameters['fy']
+    cx = parameters['cx']
+    cy = parameters['cy']
+    k1 = parameters['k1']
+    k2 = parameters['k2']
+    p1 = parameters['p1']
+    p2 = parameters['p2']
+
+    mtx = np.array([[fx, 0., cx],
+                    [0., fy, cy],
+                    [0., 0., 1.]])
+    dist = np.array([[k1, k2, p1, p2]])
+
+    return mtx, dist
+
+
 def transform_points(points, K=None, D=None, H=None):
     """
     Undistort and/or apply perspective transformation to a list of points.
@@ -26,7 +81,7 @@ def transform_points(points, K=None, D=None, H=None):
         List of points to transform
     K : np.array (3x3)
         Camera fisheye matrix (intrinsic parameters)
-    D : np.array (1x5)
+    D : np.array (1x4)
         Distortion coefficients (radial and tangential)
     H : np.array (3x3)
         Homography matrix (perspective transformation)
