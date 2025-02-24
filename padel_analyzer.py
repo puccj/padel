@@ -22,7 +22,7 @@ class PadelAnalyzer:
         MEDIUM = 2
         ACCURATE = 3
 
-    def __init__(self, input_path, cam_name = None, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate = False):
+    def __init__(self, input_path, cam_name = None, second_camera = False, output_video_path = None, output_csv_path = None, save_interval = 100, recalculate = False):
         """
         Initializes the PadelAnalyzer class.
 
@@ -32,6 +32,8 @@ class PadelAnalyzer:
             Path to the input video file or camera index.
         cam_name : str, optional
             Name of the camera. If not provided, the name will be the video name or the camera index.
+        second_camera : bool, optional
+            Flag to indicate if the camera is the second one. Defaults to False.
         output_video_path : str, optional
             Path to save the output video. Defaults to "to_be_uploaded/{video_name}-analyzed.mp4". 
         output_csv_path : str, optional
@@ -74,10 +76,10 @@ class PadelAnalyzer:
 
         if recalculate:
             self.fps = self._calculate_fps()
-            self.H = self._calculate_perspective_matrix()
+            self.H = self._calculate_perspective_matrix(second_camera)
         else:
             self.fps = self._load_fps()
-            self.H = self._load_perspective_matrix()
+            self.H = self._load_perspective_matrix(second_camera)
         
         # how many frames to average to calculate average velocity (2*fps = 2 seconds)
         self.mean_interval = int(1*self.fps)
@@ -318,21 +320,21 @@ class PadelAnalyzer:
 
         return mtx, dist
 
-    def _load_perspective_matrix(self):
+    def _load_perspective_matrix(self, second_camera=False):
         path = os.path.join('parameters', self.cam_name + '-matrix.txt')
         try:
             matrix = np.loadtxt(path)
         except FileNotFoundError:
-            matrix = self._calculate_perspective_matrix()
+            matrix = self._calculate_perspective_matrix(second_camera)
         return matrix
 
     def _onMouse(self, event, x, y, flags, param):
         if event == cv.EVENT_LBUTTONDOWN:
             self.mousePosition = (x, y)
         elif event == cv.EVENT_RBUTTONDOWN:
-            self.mousePosition = (-2, -2)   # TODO: this does not work. Maybe change it to a key pressed
+            self.mousePosition = (-2, -2)   # TODO: this (right click to remove cross) does not work. Maybe change it to a key pressed
     
-    def _calculate_perspective_matrix(self):
+    def _calculate_perspective_matrix(self, second_camera=False):
         self.mousePosition = None
         winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm."
         cv.namedWindow(winName)
@@ -413,7 +415,10 @@ class PadelAnalyzer:
         if angles[2][0] < angles[3][0]:
             angles[2], angles[3] = angles[3], angles[2]
 
-        rect = np.float32([[0, 0], [10, 0], [10, 17], [0, 17]])
+        if second_camera:
+            rect = np.float32([[10,20], [0,20], [0,3], [10,3]])
+        else:
+            rect = np.float32([[0, 0], [10, 0], [10, 17], [0, 17]])
         perspMat = cv.getPerspectiveTransform(np.float32(angles), rect)
 
         if self.file_opened:
