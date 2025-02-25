@@ -190,9 +190,6 @@ class PadelAnalyzer:
             # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
             player_dict = self._calculate_positions(detected_dict)
             ball_positions = self._calculate_ball_positions(balls)
-            
-            # Choose best 4 players to show them in the video (but all are saved in the csv)
-            best_player_dict = player_tracker.choose_best_players(player_dict)
 
             # Record and save data every save_interval frames
             frame_data = {
@@ -218,6 +215,7 @@ class PadelAnalyzer:
                     mouse = None
                 frame = draw_mini_court(frame, player_dict, mouse)
             else:
+                best_player_dict = player_tracker.choose_best_players(player_dict)
                 frame = draw_bboxes(frame, best_player_dict, show_id=False)
                 frame = draw_mini_court(frame, best_player_dict)
             # frame = draw_stats(frame, frame_data)     Can't draw stats because only position is saved (other data to be calculated during postprocess)
@@ -280,7 +278,7 @@ class PadelAnalyzer:
         return fps
 
     def _load_perspective_matrix(self, second_camera=False):
-        path = os.path.join('parameters', self.cam_name + '-matrix.txt')
+        path = os.path.join('parameters', self.cam_name + '-perspective.txt')
         try:
             matrix = np.loadtxt(path)
         except FileNotFoundError:
@@ -384,7 +382,7 @@ class PadelAnalyzer:
             self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
 
         # Save the calculated matrix
-        path = os.path.join('parameters', self.cam_name + '-matrix.txt')
+        path = os.path.join('parameters', self.cam_name + '-perspective.txt')
         os.makedirs(os.path.dirname(path), exist_ok=True)
         np.savetxt(path, perspMat)
 

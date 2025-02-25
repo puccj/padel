@@ -77,8 +77,8 @@ def transform_points(points, K=None, D=None, H=None):
     
     Parameters
     ----------
-    points : np.array
-        List of points to transform
+    points : np.array (nx2) or list of (x,y) tuples
+        List of points to transform. If a 
     K : np.array (3x3)
         Camera fisheye matrix (intrinsic parameters)
     D : np.array (1x4)
@@ -87,7 +87,13 @@ def transform_points(points, K=None, D=None, H=None):
         Homography matrix (perspective transformation)
     Returns
     -------
-    np.array"""
+    transformed_points : np.array
+        List of transformed points
+    """
+
+    # Convert list of tuples to numpy array
+    if isinstance(points, list):
+        points = np.float32(points)
 
     # Reshape feet positions to the required shape (n, 1, 2) (the extra 1 required for transformations)
     result = points.reshape(-1, 1, 2)
@@ -169,3 +175,46 @@ def draw_mini_court(frame, player_dict = None, mouse_pos = None):
         cv.circle(frame, (int(mouse_pos[0]*zoom+field_pos[0]),int(mouse_pos[1]*zoom+field_pos[1])), 1, [0,255,0], 3, cv.LINE_AA)
 
     return frame
+
+def triangulate(O1, O2, point1, point2):
+    """
+    Triangulates the 3D position of a point given its 2D projections from two different cameras. Uses least-squares
+
+    Parameters
+    ----------
+    O1 : array-like
+        The origin (position) of the first camera in 3D space.
+    O2 : array-like
+        The origin (position) of the second camera in 3D space.
+    point1 : array-like
+        The 2D coordinates of the point in the image plane of the first camera.
+    point2 : array-like
+        The 2D coordinates of the point in the image plane of the second camera.
+
+    Returns
+    -------
+    position3D : np.array
+        The 3D coordinates of the triangulated point.
+    """
+
+    # Rays from the camera origins to the points
+    d1 = np.array([point1[0] - O1[0], point1[1] - O1[1], -O1[2]])
+    d2 = np.array([point2[0] - O2[0], point2[1] - O2[1], -O2[2]]) 
+
+    # Normalize the rays TODO: this is not necessary, check if faster without
+    d1 /= np.linalg.norm(d1)
+    d2 /= np.linalg.norm(d2)
+
+    # Coefficients of the system of equations
+    A = np.vstack([d1, -d2]).T
+    b = O2 - O1
+
+    # Apply least-squares to solve the system of equations
+    lambdas = np.linalg.lstsq(A, b, rcond=None)[0]
+
+    # Calculate the 3D position of the point
+    P1 = O1 + lambdas[0] * d1
+    P2 = O2 + lambdas[1] * d2
+
+    P3D = (P1 + P2) / 2
+    return P3D
