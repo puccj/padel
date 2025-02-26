@@ -4,7 +4,7 @@ from collections import Counter
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import cv2 as cv
+import cv2
 from tqdm import tqdm
 
 from padel_utils import get_distance
@@ -62,18 +62,18 @@ class CsvAnalyzer:
         input_csv_path : str
             The path to the input CSV file.
 
+        Returns
+        -------
+        organized_data: list
+            A list of dictionaries, each containing the frame number and a list of detections. 
+            Each detection is represented as a dictionary with 'id' and 'position' keys.
+
         Raises
         ------
         FileNotFoundError
             If the specified CSV file does not exist.
         ValueError
             If the specified CSV file is empty.
-
-        Returns
-        -------
-        organized_data: list
-            A list of dictionaries, each containing the frame number and a list of detections. 
-            Each detection is represented as a dictionary with 'id' and 'position' keys.
 
         Notes
         -----
@@ -537,37 +537,37 @@ class CsvAnalyzer:
         bg_single = np.full((height_single, width_single, 3), bg_color, dtype=np.uint8)
         bg_all = np.full((height_all, width_all, 3), bg_color, dtype=np.uint8)
         if draw_net:
-            court_img = cv.imread('Field with net.png')
+            court_img = cv2.imread('Field with net.png')
         else:
-            court_img = cv.imread('Field.png')
-        court_img = cv.resize(court_img, (field_width, field_height))
+            court_img = cv2.imread('Field.png')
+        court_img = cv2.resize(court_img, (field_width, field_height))
         bg_single[offset:offset+field_height, offset:offset+field_width] = court_img
         bg_all[offset:offset+field_height, offset:offset+field_width] = court_img
 
         # Add rectangle for text
         overlay = bg_single.copy()
-        cv.rectangle(overlay, (offset, field_height + 2*offset), (width_single - offset, height_single - offset), (128, 128, 128), -1)
-        cv.addWeighted(overlay, alpha_box, bg_single, 1 - alpha_box, 0, bg_single)
+        cv2.rectangle(overlay, (offset, field_height + 2*offset), (width_single - offset, height_single - offset), (128, 128, 128), -1)
+        cv2.addWeighted(overlay, alpha_box, bg_single, 1 - alpha_box, 0, bg_single)
         overlay = bg_all.copy()
-        cv.rectangle(overlay, (field_width + 3*offset, offset), (width_all - offset, 13*offset), (128, 128, 128), -1)
-        cv.addWeighted(overlay, alpha_box, bg_all, 1 - alpha_box, 0, bg_all)
+        cv2.rectangle(overlay, (field_width + 3*offset, offset), (width_all - offset, 13*offset), (128, 128, 128), -1)
+        cv2.addWeighted(overlay, alpha_box, bg_all, 1 - alpha_box, 0, bg_all)
 
         # Add fixed text
         text = '      Total distance   |   Speed'
-        bg_all = cv.putText(bg_all, text, (field_width + 7*offset, 3*offset), cv.FONT_HERSHEY_COMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
+        bg_all = cv2.putText(bg_all, text, (field_width + 7*offset, 3*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, (0, 0, 0), font_thickness, cv2.LINE_AA)
         text = 'Player 1:'
-        bg_all = cv.putText(bg_all, text, (field_width + 4*offset, 5*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[0], font_thickness, cv.LINE_AA)
+        bg_all = cv2.putText(bg_all, text, (field_width + 4*offset, 5*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, players_color[0], font_thickness, cv2.LINE_AA)
         text = 'Player 2:'
-        bg_all = cv.putText(bg_all, text, (field_width + 4*offset, 7*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[1], font_thickness, cv.LINE_AA)
+        bg_all = cv2.putText(bg_all, text, (field_width + 4*offset, 7*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, players_color[1], font_thickness, cv2.LINE_AA)
         text = 'Player 3:'
-        bg_all = cv.putText(bg_all, text, (field_width + 4*offset, 9*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[2], font_thickness, cv.LINE_AA)
+        bg_all = cv2.putText(bg_all, text, (field_width + 4*offset, 9*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, players_color[2], font_thickness, cv2.LINE_AA)
         text = 'Player 4:'
-        bg_all = cv.putText(bg_all, text, (field_width + 4*offset, 11*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[3], font_thickness, cv.LINE_AA)
+        bg_all = cv2.putText(bg_all, text, (field_width + 4*offset, 11*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, players_color[3], font_thickness, cv2.LINE_AA)
 
         # Prepare video writers
-        fourcc = cv.VideoWriter_fourcc(*'mp4v')
-        out_singles = [cv.VideoWriter(f'{output_path}player{i+1}.mp4', fourcc, self.fps*speed_factor, (width_single, height_single)) for i in range(4)]
-        out_all = cv.VideoWriter(f'{output_path}all_players.mp4', fourcc, self.fps*speed_factor, (width_all, height_all))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out_singles = [cv2.VideoWriter(f'{output_path}player{i+1}.mp4', fourcc, self.fps*speed_factor, (width_single, height_single)) for i in range(4)]
+        out_all = cv2.VideoWriter(f'{output_path}all_players.mp4', fourcc, self.fps*speed_factor, (width_all, height_all))
 
         # Initialize past positions storage for trace effect
         past_positions = [[] for _ in range(4)]
@@ -589,29 +589,29 @@ class CsvAnalyzer:
                     past_positions[player].pop(0)
                 
                 # Draw current position and text
-                cv.circle(frame_single, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                cv2.circle(frame_single, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv2.LINE_AA)
                 text = f'Player {player+1}'
-                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 4*offset), cv.FONT_HERSHEY_COMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
+                frame_single = cv2.putText(frame_single, text, (2*offset, field_height + 4*offset), cv2.FONT_HERSHEY_COMPLEX, font_size, players_color[player], font_thickness, cv2.LINE_AA)
                 text = f'Total distance:  {int(player_data[frame_num]['distance'])} m'
-                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 6*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
+                frame_single = cv2.putText(frame_single, text, (2*offset, field_height + 6*offset), cv2.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv2.LINE_AA)
                 text = f'Speed:    {player_data[frame_num]['speed']:.2f} km/h'
-                frame_single = cv.putText(frame_single, text, (2*offset, field_height + 8*offset), cv.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv.LINE_AA)
+                frame_single = cv2.putText(frame_single, text, (2*offset, field_height + 8*offset), cv2.FONT_HERSHEY_SIMPLEX, font_size, (0, 0, 0), font_thickness, cv2.LINE_AA)
 
                 # Draw current position on all players video
-                cv.circle(frame_all, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                cv2.circle(frame_all, (int(pos[0]*field_width/10 +offset), int(pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv2.LINE_AA)
                 text = f'                {int(player_data[frame_num]['distance'])} m        {player_data[frame_num]['speed']:.2f} km/h'
-                frame_all = cv.putText(frame_all, text, (field_width + 4*offset, text_yposition[player]), cv.FONT_HERSHEY_SIMPLEX, font_size, players_color[player], font_thickness, cv.LINE_AA)
+                frame_all = cv2.putText(frame_all, text, (field_width + 4*offset, text_yposition[player]), cv2.FONT_HERSHEY_SIMPLEX, font_size, players_color[player], font_thickness, cv2.LINE_AA)
 
                 # Draw trace positions
                 overlay_single = frame_single.copy()
                 overlay_all = frame_all.copy()
                 for past_pos in past_positions[player]:
                     # alpha_trace = 1.0 - (trace_index + 1) / trace if trace > 0 else 1.0
-                    cv.circle(overlay_single, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
-                    cv.circle(overlay_all, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv.LINE_AA)
+                    cv2.circle(overlay_single, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv2.LINE_AA)
+                    cv2.circle(overlay_all, (int(past_pos[0]*field_width/10 +offset), int(past_pos[1]*field_width/10 +offset)), 1, players_color[player], int(field_width/50), cv2.LINE_AA)
 
-                cv.addWeighted(overlay_single, alpha, frame_single, 1 - alpha, 0, frame_single)
-                cv.addWeighted(overlay_all, alpha, frame_all, 1 - alpha, 0, frame_all)
+                cv2.addWeighted(overlay_single, alpha, frame_single, 1 - alpha, 0, frame_single)
+                cv2.addWeighted(overlay_all, alpha, frame_all, 1 - alpha, 0, frame_all)
                 
                 out_singles[player].write(frame_single)
             out_all.write(frame_all)

@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 # TODO import logging
 
-import cv2 as cv
+import cv2
 import numpy as np
 import csv
 
@@ -48,7 +48,7 @@ class PadelAnalyzer:
         RuntimeError
             If the video/camera stream could not be opened.
         """
-        self.cap = cv.VideoCapture(input_path)
+        self.cap = cv2.VideoCapture(input_path)
         if not self.cap.isOpened():
             raise RuntimeError(f"PADEL ERROR: Could not open video/camera stream {input_path}.")
             
@@ -79,7 +79,7 @@ class PadelAnalyzer:
             print("Fisheye parameters not found. You can follow the calibrate.py script to calculate them or continue to determine them manually.")
             print("\n--- Calculating fisheye parameters ---\n")
             from gui_calib import Fisheye
-            self.cap.set(cv.CAP_PROP_POS_FRAMES, 10)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 10)
             ret, img = self.cap.read()
             fisheye = Fisheye(img)
             self.K, self.D = fisheye.fisheye_gui(save_path=fisheye_path)
@@ -117,11 +117,6 @@ class PadelAnalyzer:
         debug : bool, optional
             If True, additional debug information will be drawn on the video, such as player IDs and the mini court. Default is False.
         
-        Raises
-        ------
-        FileNotFoundError
-            If the video file is opened but the first frame cannot be read.
-        
         Returns
         -------
         tuple
@@ -132,19 +127,24 @@ class PadelAnalyzer:
                 The frames per second of the output video.
             - output_csv_paths : list
                 A list of paths to the output CSV files containing player data.
+        
+        Raises
+        ------
+        FileNotFoundError
+            If the video file is opened but the first frame cannot be read.
         """        
 
         # whenever process_all is called, re-start from beginning of video
         if self.file_opened:
-            self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
         # Take first frame
         success, first_frame = self.cap.read()
         if not success:
             raise FileNotFoundError(f"PADEL ERROR: Cap is opened, but couldn't read first frame.")
         
-        fourcc = cv.VideoWriter_fourcc(*'mp4v')
-        out = cv.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
         
         # Choosing model
         if model == PadelAnalyzer.Model.ACCURATE:
@@ -209,8 +209,8 @@ class PadelAnalyzer:
                 frame = draw_ball(frame, balls)
                 if show and self.mousePosition is not None:
                     mouse = transform_points(np.float32([self.mousePosition]), self.K, self.D, self.H)[0]
-                    cv.namedWindow('Video')
-                    cv.setMouseCallback('Video', self._onMouse)
+                    cv2.namedWindow('Video')
+                    cv2.setMouseCallback('Video', self._onMouse)
                 else:
                     mouse = None
                 frame = draw_mini_court(frame, player_dict, mouse)
@@ -221,8 +221,8 @@ class PadelAnalyzer:
             # frame = draw_stats(frame, frame_data)     Can't draw stats because only position is saved (other data to be calculated during postprocess)
 
             if show:
-                cv.imshow('Video', frame)
-                if cv.waitKey(1) & 0xFF == ord('q'):
+                cv2.imshow('Video', frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             out.write(frame)
         
@@ -254,7 +254,7 @@ class PadelAnalyzer:
             print(f"An unexpected error occurred: {e}")
 
     def _calculate_fps(self):
-        fps = self.cap.get(cv.CAP_PROP_FPS)
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
         if fps == 0:
         
             #If the property is 0, try to calculate it in a different way
@@ -266,7 +266,7 @@ class PadelAnalyzer:
                     break
             end = time.time()
             if self.file_opened:
-                self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
             fps = num_frames / (end-start)
 
         # Save the calculated fps
@@ -286,16 +286,16 @@ class PadelAnalyzer:
         return matrix
 
     def _onMouse(self, event, x, y, flags, param):
-        if event == cv.EVENT_LBUTTONDOWN:
+        if event == cv2.EVENT_LBUTTONDOWN:
             self.mousePosition = (x, y)
-        elif event == cv.EVENT_RBUTTONDOWN:
+        elif event == cv2.EVENT_RBUTTONDOWN:
             self.mousePosition = (-2, -2)   # TODO: this (right click to remove cross) does not work. Maybe change it to a key pressed
     
     def _calculate_perspective_matrix(self, second_camera=False):
         self.mousePosition = None
         winName = "Click on points indicated in green. Use WASD to move last cross. Right click to remove it. Press space to confirm."
-        cv.namedWindow(winName)
-        cv.setMouseCallback(winName, self._onMouse)
+        cv2.namedWindow(winName)
+        cv2.setMouseCallback(winName, self._onMouse)
 
         angles = []  # angles of the field
 
@@ -305,21 +305,21 @@ class PadelAnalyzer:
             print("--- Calculating perspective ---\nClick on the 4 indicated points. Press 'space' to confirm. Press 'q' to abort")
 
         random.seed(time.time())
-        totalFrame = int(self.cap.get(cv.CAP_PROP_FRAME_COUNT)) - 2
+        totalFrame = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 2
         key = -1
         count = 0
         while key != ord(' '):  # space key
             key = -1
             success, original = self.cap.read()
             if self.file_opened:
-                self.cap.set(cv.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, random.randint(0, totalFrame))
                 success, original = self.cap.read()
             while self.file_opened and key != ord('n') and (key != 32 or count < 4):
                 # Use undistorted image
-                size = (int(self.cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv.CAP_PROP_FRAME_HEIGHT)))
-                map1, map2 = cv.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.K, size, cv.CV_16SC2)
-                frame = cv.remap(original, map1, map2, interpolation=cv.INTER_LINEAR, borderMode=cv.BORDER_CONSTANT)
-                # frame = cv.undistort(original, self.fisheye_matrix, self.distortion, None, None)
+                size = (int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+                map1, map2 = cv2.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.K, size, cv2.CV_16SC2)
+                frame = cv2.remap(original, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                # frame = cv2.undistort(original, self.fisheye_matrix, self.distortion, None, None)
 
                 # if self.mousePosition[0] == -2:  # right click on mouse
                 #     if count > 0:
@@ -333,9 +333,9 @@ class PadelAnalyzer:
                     count += 1
                     self.mousePosition = None
 
-                key = cv.waitKey(5)
+                key = cv2.waitKey(5)
                 if key == ord('q'):
-                    cv.destroyWindow(winName)
+                    cv2.destroyWindow(winName)
                     raise RuntimeError("PADEL NOTE: execution aborted by user.")
                 if count > 0:
                     if key == ord('a'):  # left
@@ -348,23 +348,23 @@ class PadelAnalyzer:
                         angles[-1] = (angles[-1][0]   , angles[-1][1] +1)
 
                 for angle in angles:
-                    cv.drawMarker(frame, angle, (0, 0, 255), cv.MARKER_TILTED_CROSS, 20, 1)
+                    cv2.drawMarker(frame, angle, (0, 0, 255), cv2.MARKER_TILTED_CROSS, 20, 1)
 
                 scale = 10
                 offset = 20
-                cv.rectangle(frame, (offset, offset), (10 * scale + offset, 20 * scale + offset), (129, 94, 61), -1)
-                cv.line(frame, (offset, 3 * scale + offset), (10 * scale + offset, 3 * scale + offset), (255, 255, 255), 1)
-                cv.line(frame, (offset, 17 * scale + offset), (10 * scale + offset, 17 * scale + offset), (255, 255, 255), 1)
-                cv.line(frame, (5 * scale + offset, int(2.7 * scale + offset)), (5 * scale + offset, int(17.3 * scale + offset)), (255, 255, 255), 1)
-                cv.line(frame, (offset, 10 * scale + offset), (10 * scale + offset, 10 * scale + offset), (0, 0, 255), 2)
-                cv.drawMarker(frame, (offset, offset), (0, 255, 0), cv.MARKER_TILTED_CROSS, scale, 2)
-                cv.drawMarker(frame, (10 * scale + offset, offset), (0, 255, 0), cv.MARKER_TILTED_CROSS, scale, 2)
-                cv.drawMarker(frame, (offset, 17 * scale + offset), (0, 255, 0), cv.MARKER_TILTED_CROSS, scale, 2)
-                cv.drawMarker(frame, (10 * scale + offset, 17 * scale + offset), (0, 255, 0), cv.MARKER_TILTED_CROSS, scale, 2)
+                cv2.rectangle(frame, (offset, offset), (10 * scale + offset, 20 * scale + offset), (129, 94, 61), -1)
+                cv2.line(frame, (offset, 3 * scale + offset), (10 * scale + offset, 3 * scale + offset), (255, 255, 255), 1)
+                cv2.line(frame, (offset, 17 * scale + offset), (10 * scale + offset, 17 * scale + offset), (255, 255, 255), 1)
+                cv2.line(frame, (5 * scale + offset, int(2.7 * scale + offset)), (5 * scale + offset, int(17.3 * scale + offset)), (255, 255, 255), 1)
+                cv2.line(frame, (offset, 10 * scale + offset), (10 * scale + offset, 10 * scale + offset), (0, 0, 255), 2)
+                cv2.drawMarker(frame, (offset, offset), (0, 255, 0), cv2.MARKER_TILTED_CROSS, scale, 2)
+                cv2.drawMarker(frame, (10 * scale + offset, offset), (0, 255, 0), cv2.MARKER_TILTED_CROSS, scale, 2)
+                cv2.drawMarker(frame, (offset, 17 * scale + offset), (0, 255, 0), cv2.MARKER_TILTED_CROSS, scale, 2)
+                cv2.drawMarker(frame, (10 * scale + offset, 17 * scale + offset), (0, 255, 0), cv2.MARKER_TILTED_CROSS, scale, 2)
 
-                cv.imshow(winName, frame)
+                cv2.imshow(winName, frame)
 
-        cv.destroyWindow(winName)
+        cv2.destroyWindow(winName)
 
         angles.sort(key=lambda pt: pt[1])
         if angles[0][0] > angles[1][0]:
@@ -376,10 +376,10 @@ class PadelAnalyzer:
             rect = np.float32([[10,20], [0,20], [0,3], [10,3]])
         else:
             rect = np.float32([[0, 0], [10, 0], [10, 17], [0, 17]])
-        perspMat = cv.getPerspectiveTransform(np.float32(angles), rect)
+        perspMat = cv2.getPerspectiveTransform(np.float32(angles), rect)
 
         if self.file_opened:
-            self.cap.set(cv.CAP_PROP_POS_FRAMES, 0)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
         # Save the calculated matrix
         path = os.path.join('parameters', self.cam_name + '-perspective.txt')
