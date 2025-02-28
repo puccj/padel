@@ -85,11 +85,15 @@ def transform_points(points, K=None, D=None, H=None):
         Distortion coefficients (radial and tangential)
     H : np.array (3x3)
         Homography matrix (perspective transformation)
+    
     Returns
     -------
     transformed_points : np.array
         List of transformed points
     """
+
+    if points is None or len(points) == 0:
+        return np.array([])
 
     # Convert list of tuples to numpy array
     if isinstance(points, list):
@@ -195,6 +199,8 @@ def triangulate(O1, O2, point1, point2):
     -------
     position3D : np.array
         The 3D coordinates of the triangulated point.
+    error : float
+        The error of the triangulation (distance between the two rays).
     """
 
     # Rays from the camera origins to the points
@@ -215,6 +221,7 @@ def triangulate(O1, O2, point1, point2):
     # Calculate the 3D position of the point
     P1 = O1 + lambdas[0] * d1
     P2 = O2 + lambdas[1] * d2
-
     P3D = (P1 + P2) / 2
-    return P3D
+    error = np.linalg.norm(P1 - P2)
+    
+    return P3D, error
