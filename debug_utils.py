@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from itertools import chain
 import numpy as np
 import csv
+import os
 
 point = None
 
@@ -232,6 +233,69 @@ def detect_ball(video_path, K, D, H, output_path,
     cap.release()
     return output_path
     
+def load_data(path):
+    """Load (ball) data from csv file
+    Parameters
+    ----------
+    path : str
+        Path to the csv file
+    
+    Returns
+    -------
+    data : list of lists of tuples
+        Each element of the list represents a frame. Each frame is a list of tuples, each tuple is a 2D point
+
+    Raises
+    ------
+    FileNotFoundError
+        If the file is not found
+
+    Notes
+    -----
+    1) The csv file should have the following format: frame_number, [x1,y1], [x2,y2], ...
+    2) If the frame number are irregular (not starting from 0 or not consecutive), 
+    maybe it's better to return a dictionary with the frame number as key: data[frame_num] = detections
+    """
+    
+    data = []
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File {path} not found")
+    
+    if os.path.getsize(path) == 0:
+        return data
+
+    with open(path, mode='r') as file:
+        csvFile = csv.reader(file)
+        for row in csvFile:
+            detections = row[1:]
+            frame_data = []
+            for detection in detections:
+                pos_str = detection.strip('[] ').split()
+                pos = tuple(float(coord) for coord in pos_str)
+                frame_data.append(pos)
+            
+            data.append(frame_data)
+    
+    return data
+
+def generate_test_data(num_points=1000):
+    """Generate random test data with realistic camera geometry"""
+    np.random.seed(42)
+    
+    # Camera positions (realistic stereo setup)
+    O1 = np.array([-0.5, 0, 2.0])  # Left camera
+    O2 = np.array([0.5, 0, 2.0])   # Right camera
+    
+    # Generate random 3D points in front of cameras
+    points3d = np.random.randn(num_points, 3) * 5
+    points3d[:, 2] = np.abs(points3d[:, 2]) + 3  # Ensure positive Z
+    
+    # Project to 2D (simple perspective projection)
+    points1 = points3d[:, :2] / points3d[:, 2:] + np.random.normal(0, 0.01, (num_points, 2))
+    points2 = (points3d[:, :2] - (O2[:2] - O1[:2])) / points3d[:, 2:] + np.random.normal(0, 0.01, (num_points, 2))
+    
+    return O1, O2, points1, points2, points3d
 
 if __name__ == "__main__":
     point1 = select_point("input_videos/primo test pallina/cam1.png")
