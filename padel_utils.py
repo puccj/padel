@@ -223,81 +223,81 @@ def triangulate_point(O1, O2, point1, point2):
     
     return P3D, error
 
-def triangulate_points(O1, O2, points1_array, points2_array):
+def triangulate_points(O1, O2, points1, points2):
     """
-    Vectorized version of 3D-positions triangulation from 2D projections.
-
+    Compute the 3D positions for each pair of points from two cameras.
+    
     Parameters
     ----------
-    O1 : array-like, shape (3,)
-        Origin (position) of the first camera.
-    O2 : array-like, shape (3,)
-        Origin (position) of the second camera.
-    points1 : array-like, shape (N, 2)
-        2D coordinates in the first camera's image plane.
-    points2 : array-like, shape (N, 2)
-        2D coordinates in the second camera's image plane.
-
+    O1 : array-like (3,)
+        First camera coordinates (x, y, z)
+    O2 : array-like (3,)
+        Second camera coordinates (x, y, z)
+    points1 : array-like (N, 2)
+        Array of 2D-points from first camera
+    points2 : array-like (M, 2)
+        Array of 2D-points from second camera
+        
     Returns
     -------
-    positions3D : np.array, shape (N, 3)
-        3D coordinates of the triangulated points.
-    errors : np.array, shape (N,)
-        Reprojection errors (distance between rays).
+    positions3D : np.array (N, M, 3)
+        3D positions for all point pairs
+    errors : np.array (N, M)
+        Errors for all point pairs
 
     Notes
     -----
-    AI-generated. Vectorized version of the triangulate_point function.
+    The input points should be in the form (x, y) and represent the 2D coordinates of the tranformed points (in the z=0 plane)
+    The cameras inputs should be in the form (x, y, z) 
+    The error is calculated as the distance between the two rays connecting the camera origin and its respective 2D point
     """
 
     O1 = np.array(O1)
     O2 = np.array(O2)
-    points1 = np.array(points1_array)
-    points2 = np.array(points2_array)
-    N = points1.shape[0]
-
-    # Compute ray directions for all points
-    d1 = np.column_stack([
-        points1[:, 0] - O1[0],
-        points1[:, 1] - O1[1],
-        -np.full(N, O1[2])
-    ])
-    d2 = np.column_stack([
-        points2[:, 0] - O2[0],
-        points2[:, 1] - O2[1],
-        -np.full(N, O2[2])
-    ])
-
-    # Normalize rays (avoid division by zero)
-    norm1 = np.linalg.norm(d1, axis=1, keepdims=True)
-    norm2 = np.linalg.norm(d2, axis=1, keepdims=True)
-    d1 = np.divide(d1, norm1, where=norm1 != 0)
-    d2 = np.divide(d2, norm2, where=norm2 != 0)
-
-    # Batch least-squares setup
-    A = np.stack([d1, -d2], axis=2)  # Shape (N, 3, 2)
-    b = O2 - O1  # Shape (3,)
-
-    # Solve (A^T A)λ = A^T b for all points
-    A_transposed = np.transpose(A, (0, 2, 1))  # Shape (N, 2, 3)
-    AtA = A_transposed @ A  # Shape (N, 2, 2)
-    Atb = A_transposed @ b  # Shape (N, 2)
-
-    # Explicit 2x2 matrix inversion (vectorized)
-    a, b_ = AtA[:, 0, 0], AtA[:, 0, 1]
-    c, d = AtA[:, 1, 0], AtA[:, 1, 1]
-    det = a * d - b_ * c
-    inv_det = np.divide(1.0, det, where=det != 0)
-
-    # Compute inverse(AtA) * Atb
-    lambda0 = (d * Atb[:, 0] - b_ * Atb[:, 1]) * inv_det
-    lambda1 = (-c * Atb[:, 0] + a * Atb[:, 1]) * inv_det
-    lambdas = np.column_stack([lambda0, lambda1])
-
-    # Calculate 3D positions and errors
-    P1 = O1 + lambdas[:, [0]] * d1
-    P2 = O2 + lambdas[:, [1]] * d2
+    points1 = np.array(points1)
+    points2 = np.array(points2)
+    
+    N, M = len(points1), len(points2)
+    
+    # Create broadcastable arrays (N, M, 2)
+    p1 = points1[:, np.newaxis, :]  # (N, 1, 2)
+    p2 = points2[np.newaxis, :, :]  # (1, M, 2)
+    
+    # Compute ray directions for all pairs (N, M, 3)
+    d1 = np.empty((N, M, 3))
+    d1[..., :2] = p1[..., :2] - O1[:2]
+    d1[..., 2] = -O1[2]
+    
+    d2 = np.empty((N, M, 3))
+    d2[..., :2] = p2[..., :2] - O2[:2]
+    d2[..., 2] = -O2[2]
+    
+    # Normalize rays
+    d1 /= np.linalg.norm(d1, axis=-1, keepdims=True)
+    d2 /= np.linalg.norm(d2, axis=-1, keepdims=True)
+    
+    # Solve for all pairs using batched least squares
+    A = np.stack([d1, -d2], axis=-1)  # (N, M, 3, 2)
+    b = O2 - O1  # (3,)
+    
+    # Manual 2x2 system solving (vectorized)
+    # A^T A λ = A^T b
+    A_transposed = np.swapaxes(A, -1, -2)  # (N, M, 2, 3)
+    AtA = A_transposed @ A  # (N, M, 2, 2)
+    Atb = A_transposed @ b  # (N, M, 2)
+    
+    # Compute determinant
+    det = AtA[..., 0, 0] * AtA[..., 1, 1] - AtA[..., 0, 1] * AtA[..., 1, 0]
+    inv_det = 1.0 / (det + 1e-10)
+    
+    # Compute lambdas
+    lambda0 = (AtA[..., 1, 1] * Atb[..., 0] - AtA[..., 0, 1] * Atb[..., 1]) * inv_det
+    lambda1 = (-AtA[..., 1, 0] * Atb[..., 0] + AtA[..., 0, 0] * Atb[..., 1]) * inv_det
+    
+    # Compute 3D positions
+    P1 = O1 + lambda0[..., np.newaxis] * d1
+    P2 = O2 + lambda1[..., np.newaxis] * d2
     positions3D = (P1 + P2) / 2
-    errors = np.linalg.norm(P1 - P2, axis=1)
-
+    errors = np.linalg.norm(P1 - P2, axis=-1)
+    
     return positions3D, errors

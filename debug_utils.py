@@ -303,4 +303,81 @@ if __name__ == "__main__":
     print("Punto 1:", point1)
     print("Punto 2:", point2)
 
-    
+def triangulate_points(O1, O2, points1_array, points2_array):
+    """
+    Vectorized version of 3D-positions triangulation from 2D projections.
+
+    Parameters
+    ----------
+    O1 : array-like, shape (3,)
+        Origin (position) of the first camera.
+    O2 : array-like, shape (3,)
+        Origin (position) of the second camera.
+    points1 : array-like, shape (N, 2)
+        2D coordinates in the first camera's image plane.
+    points2 : array-like, shape (N, 2)
+        2D coordinates in the second camera's image plane.
+
+    Returns
+    -------
+    positions3D : np.array, shape (N, 3)
+        3D coordinates of the triangulated points.
+    errors : np.array, shape (N,)
+        Reprojection errors (distance between rays).
+
+    Notes
+    -----
+    AI-generated. Vectorized version of the triangulate_point function.
+    """
+
+    O1 = np.array(O1)
+    O2 = np.array(O2)
+    points1 = np.array(points1_array)
+    points2 = np.array(points2_array)
+    N = points1.shape[0]
+
+    # Compute ray directions for all points
+    d1 = np.column_stack([
+        points1[:, 0] - O1[0],
+        points1[:, 1] - O1[1],
+        -np.full(N, O1[2])
+    ])
+    d2 = np.column_stack([
+        points2[:, 0] - O2[0],
+        points2[:, 1] - O2[1],
+        -np.full(N, O2[2])
+    ])
+
+    # Normalize rays (avoid division by zero)
+    norm1 = np.linalg.norm(d1, axis=1, keepdims=True)
+    norm2 = np.linalg.norm(d2, axis=1, keepdims=True)
+    d1 = np.divide(d1, norm1, where=norm1 != 0)
+    d2 = np.divide(d2, norm2, where=norm2 != 0)
+
+    # Batch least-squares setup
+    A = np.stack([d1, -d2], axis=2)  # Shape (N, 3, 2)
+    b = O2 - O1  # Shape (3,)
+
+    # Solve (A^T A)λ = A^T b for all points
+    A_transposed = np.transpose(A, (0, 2, 1))  # Shape (N, 2, 3)
+    AtA = A_transposed @ A  # Shape (N, 2, 2)
+    Atb = A_transposed @ b  # Shape (N, 2)
+
+    # Explicit 2x2 matrix inversion (vectorized)
+    a, b_ = AtA[:, 0, 0], AtA[:, 0, 1]
+    c, d = AtA[:, 1, 0], AtA[:, 1, 1]
+    det = a * d - b_ * c
+    inv_det = np.divide(1.0, det, where=det != 0)
+
+    # Compute inverse(AtA) * Atb
+    lambda0 = (d * Atb[:, 0] - b_ * Atb[:, 1]) * inv_det
+    lambda1 = (-c * Atb[:, 0] + a * Atb[:, 1]) * inv_det
+    lambdas = np.column_stack([lambda0, lambda1])
+
+    # Calculate 3D positions and errors
+    P1 = O1 + lambdas[:, [0]] * d1
+    P2 = O2 + lambdas[:, [1]] * d2
+    positions3D = (P1 + P2) / 2
+    errors = np.linalg.norm(P1 - P2, axis=1)
+
+    return positions3D, errors
