@@ -105,7 +105,9 @@ def detect_ball(video_path, K, D, H, output_path,
                 kernel_size=20, 
                 skip_frame=0, 
                 sync_frame=0, 
-                model="models/yolov8x-seg.pt" ):
+                model="models/yolov8x-seg.pt",
+                show=False,
+                delay=1):
     """
     Detect the ball in a video and save the output data.
 
@@ -134,6 +136,10 @@ def detect_ball(video_path, K, D, H, output_path,
         e.g., put 1 to discard half of the frames for 20fps vs 10fps videos. The default is 0.
     model : str, optional
         Path to the YOLO model. The default is "model/yolo8x-seg.pt".
+    show : bool, optional
+        Show the video while processing. The default is False.
+    delay : int, optional
+        Delay between frames in milliseconds. The default is 1.
 
     Returns
     -------
@@ -204,15 +210,20 @@ def detect_ball(video_path, K, D, H, output_path,
                 mask = (mask > 0.5).astype(np.uint8) * 255      # Binarize
                 mask = cv2.dilate(mask, kernel, iterations=1)   # Dilate
                 frame_diff[mask > 0] = 0    # Remove players and rackets
+                if show:
+                    frame[mask > 0] = 0
 
         balls = []  # Ball position in camera frame (px)
 
+        # Find contours
         contours, _ = cv2.findContours(frame_diff, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
             area = cv2.contourArea(contour)
-            if area > min_area:
+            if area >= min_area:
                 x, y, w, h = cv2.boundingRect(contour)
                 balls.append(np.float32([x+w/2, y+h/2]))
+                if show:
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
         
         balls_position = transform_points(balls, K, D, H)   # in world frame (m)
 
@@ -225,6 +236,14 @@ def detect_ball(video_path, K, D, H, output_path,
             writer = csv.writer(f)
             row = [frame_data["frame"]] + [pos for pos in frame_data["balls"]]
             writer.writerow(row)
+
+        # Show the video
+        if show:
+            cv2.imshow("Frame", frame)
+            cv2.imshow("Diff", frame_diff)
+            if cv2.waitKey(delay) & 0xFF == ord('q'):
+                cv2.destroyAllWindows()
+                break
 
         old_gray = frame_gray
         old_results = results
