@@ -131,7 +131,40 @@ def draw_ball(frame, ball_list):
     
     return frame
 
-def draw_mini_court(frame, player_dict = None, mouse_pos = None):
+def draw_mini_court(frame, player_dict = None, balls = None, mouse_pos = None):
+    """
+    Draw a mini volleyball court on the top left corner of the frame.
+    The court is 10x20 meters, with a net at the middle of the court.
+    The players are drawn as circles on the court.
+    
+    Parameters
+    ----------
+    frame : np.array
+        The frame to draw the court on.
+    player_dict : dict
+        Dictionary containing the players' information.
+    balls : list
+        List of balls' positions and errors.
+    mouse_pos : tuple
+        The position of the mouse on the frame.
+
+    Returns
+    -------
+    frame : np.array
+        The frame with the court drawn on it.
+
+    Notes
+    -----
+    The player_dict should be a dictionary with the following structure:
+    {
+        0: PlayerInfo,
+        1: PlayerInfo,
+        ...
+    }
+    The PlayerInfo object should have (at least) the position attribute in the form of a tuple (x, y).
+    The ball_dict should be a list of tuples, each containing the position and error of the ball.
+    """
+
     # Variables
     #zoom = 25
     zoom = int(frame.shape[0] / 40)  #height of frame/40
@@ -160,16 +193,25 @@ def draw_mini_court(frame, player_dict = None, mouse_pos = None):
     cv2.line(frame, (5*zoom+field_pos[0],int(2.7*zoom+field_pos[1])), ( 5*zoom+field_pos[0], int(17.3*zoom+field_pos[1])), line_color, 2)  #vertical
     cv2.line(frame, (field_pos[0]       ,   10  *zoom+field_pos[1]) , (10*zoom+field_pos[0],     10  *zoom+field_pos[1]) , net_color , 1)  #net
 
-
     # Draw players on mini court
-    if player_dict == None:
-        return frame
-    
-    for id, player_info in player_dict.items():
-        # if id > 5:
-        #     id = id % 4
-        # cv2.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, players_colors[id], 3, cv2.LINE_AA)
-        cv2.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, [0,0,255], 3, cv2.LINE_AA)
+    if player_dict is not None:
+        for id, player_info in player_dict.items():
+            # if id > 5:
+            #     id = id % 4
+            # cv2.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, players_colors[id], 3, cv2.LINE_AA)
+            cv2.circle(frame, (int(player_info.position[0]*zoom+field_pos[0]),int(player_info.position[1]*zoom+field_pos[1])), 1, [0,0,255], 3, cv2.LINE_AA)
+
+    # Draw balls on mini court
+    thresh = 2 # above this value, error is considered to much and the ball is drawn in black
+    if balls is not None:
+        for ball in balls:
+            if ball[1] > thresh:
+                color = [0, 0, 0]
+            else:
+                c = int(ball[1]*255/thresh)
+                color = [0, c, 255-c]
+            # color = [0,255,0] if ball[1] < 0.5 else [0,0,255]
+            cv2.circle(frame, (int(ball[0][0]*zoom+field_pos[0]),int(ball[0][1]*zoom+field_pos[1])), 1, color, 3, cv2.LINE_AA)
 
     # Draw mouse position
     if mouse_pos is not None:
@@ -252,6 +294,9 @@ def triangulate_points(O1, O2, points1, points2):
     The error is calculated as the distance between the two rays connecting the camera origin and its respective 2D point
     """
 
+    if len(points1) == 0 or len(points2) == 0:
+        return None, None
+
     O1 = np.array(O1)
     O2 = np.array(O2)
     points1 = np.array(points1)
@@ -299,5 +344,13 @@ def triangulate_points(O1, O2, points1, points2):
     P2 = O2 + lambda1[..., np.newaxis] * d2
     positions3D = (P1 + P2) / 2
     errors = np.linalg.norm(P1 - P2, axis=-1)
+
+    # Now we have positions3D and errors in a grid, as (N, M, 3) and (N, M) respectively.
+    # We can flatten them to a list of 3D points and errors for each pair of points
+    flat_positions3D = positions3D.reshape(-1, 3)
+    flat_errors = errors.reshape(-1)
+
+    return flat_positions3D, flat_errors
     
-    return positions3D, errors
+    # We could also convert the 3D points to a list of tuples, instead of a list of lists
+    # return [tuple(pos) for pos in flat_positions], flat_errors.tolist()
