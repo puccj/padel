@@ -9,3 +9,4 @@ models/*
 __pycache__
 *.pt
 calibration/*
+*.key
