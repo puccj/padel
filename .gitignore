@@ -8,5 +8,5 @@ output_*
 models/*
 __pycache__
 *.pt
-calibration/*
+calibration*
 *.key
