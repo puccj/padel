@@ -2,4 +2,3 @@ ultralytics
 opencv-python
 opencv-contrib-python
 lapx
-mediapipe
