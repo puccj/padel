@@ -423,7 +423,7 @@ class PadelAnalyzer:
             writer = csv.writer(csvfile)
             
             for frame_data in data:
-                row = [frame_data['frame_num'], frame_data['balls']]
+                row = [frame_data['frame_num']]
                 for player_id, player_info in frame_data['players'].items():
                     row.append(player_id)
                     row.append(player_info.position)

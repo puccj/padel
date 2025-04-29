@@ -2,7 +2,7 @@ from padel_analyzer import PadelAnalyzer
 from csv_analyzer import CsvAnalyzer
 import argparse
 
-def main (input_video_path, cam_name='test', second_camera=False, recalculate=False, show_video=False, debug=False):
+def main(input_video_path, cam_name='test', second_camera=False, recalculate=False, show_video=False, debug=False):
     
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
     analyzer = PadelAnalyzer(input_video_path, cam_name, second_camera=second_camera, recalculate=recalculate, save_interval=200)
