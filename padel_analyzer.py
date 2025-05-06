@@ -79,7 +79,7 @@ class PadelAnalyzer:
             print("Fisheye parameters not found. You can follow the calibrate.py script to calculate them or continue to determine them manually.")
             print("\n--- Calculating fisheye parameters ---\n")
             from gui_calib import Fisheye
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 10)
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 30)
             ret, img = self.cap.read()
             fisheye = Fisheye(img)
             self.K, self.D = fisheye.fisheye_gui(save_path=fisheye_path)
@@ -103,7 +103,7 @@ class PadelAnalyzer:
             with open(csv_path, 'w', newline='') as csvfile:
                 pass    # Create the file (erasing it if it already exists)
         
-    def process(self, model = Model.ACCURATE, show = False, debug = False):
+    def process(self, model = Model.ACCURATE, show = False, debug = False, mini_court = True):
         """
         Process all the frames of the video, detecting players and saving their positions in a CSV file.
         3 CSV files are created, one for each period of the game.
@@ -116,6 +116,8 @@ class PadelAnalyzer:
             If True, the video will be displayed while processing. Default is False.
         debug : bool, optional
             If True, additional debug information will be drawn on the video, such as player IDs and the mini court. Default is False.
+        mini_court : bool, optional
+            If True, the mini court will be drawn on the video. Default is True.
         
         Returns
         -------
@@ -213,11 +215,13 @@ class PadelAnalyzer:
                     cv2.setMouseCallback('Video', self._onMouse)
                 else:
                     mouse = None
-                frame = draw_mini_court(frame, player_dict, mouse)
+                if mini_court:
+                    frame = draw_mini_court(frame, player_dict, mouse)
             else:
                 best_player_dict = player_tracker.choose_best_players(player_dict)
                 frame = draw_bboxes(frame, best_player_dict, show_id=False)
-                frame = draw_mini_court(frame, best_player_dict)
+                if mini_court:
+                    frame = draw_mini_court(frame, best_player_dict)
             # frame = draw_stats(frame, frame_data)     Can't draw stats because only position is saved (other data to be calculated during postprocess)
 
             if show:
@@ -228,6 +232,7 @@ class PadelAnalyzer:
         
             frame_num += 1
 
+        cv2.destroyAllWindows()
         self.cap.release()
         out.release()
 

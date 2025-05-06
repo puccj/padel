@@ -2,12 +2,12 @@ from padel_analyzer import PadelAnalyzer
 from csv_analyzer import CsvAnalyzer
 import argparse
 
-def main(input_video_path, cam_name='test', second_camera=False, recalculate=False, show_video=False, debug=False):
+def main(input_video_path, cam_name='test', second_camera=False, recalculate=False, show_video=False, debug=False, mini_court=True):
     
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
     analyzer = PadelAnalyzer(input_video_path, cam_name, second_camera=second_camera, recalculate=recalculate, save_interval=200)
 
-    out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, show=show_video, debug=debug)
+    out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, show=show_video, debug=debug, mini_court=mini_court)
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
 
     for csv in out_csvs:
@@ -26,7 +26,8 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--recalculate', action=argparse.BooleanOptionalAction, help='recalculate camera matrices and fps')
     parser.add_argument('-s', '--show',  action=argparse.BooleanOptionalAction, help='show video')
     parser.add_argument('-d', '--debug', action=argparse.BooleanOptionalAction, help='debug mode')
+    parser.add_argument('-m', '--mini_court', action=argparse.BooleanOptionalAction, help='draw mini court')
     parser.add_argument('-c', '--camera', '--second_camera', action=argparse.BooleanOptionalAction, help='second camera')
     args = parser.parse_args()
     
-    main(args.path, args.name, args.camera, args.recalculate, args.show, args.debug)
+    main(args.path, args.name, args.camera, args.recalculate, args.show, args.debug, args.mini_court)
