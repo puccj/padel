@@ -107,17 +107,58 @@ def transform_points(points, K=None, D=None, H=None):
         
     return result.reshape(-1,2)    # reshape back to (n,2)
 
-def draw_bboxes(frame, player_dict, show_id = False):
+def draw_bboxes(frame, player_dict, show_id = False, only4 = False):
+    """
+    Draws the bounding boxes of the players on the frame.
+    
+    Parameters
+    ----------
+    frame : np.array
+        The frame to draw the bounding boxes on.
+    player_dict : dict
+        Dictionary containing the players' information.
+    show_id : bool
+        Whether to show the player ID on the bounding box.
+    only4 : bool
+        Whether to show only the players with IDs 1,2,3,4. 
+        In this case, each player will have a different color.
+        
+    Returns
+    -------
+    frame : np.array
+        The frame with the bounding boxes drawn on it.
+    
+    Notes
+    -----
+    The player_dict should be a dictionary with the following structure:
+    {
+        0: PlayerInfo,
+        1: PlayerInfo,
+        ...
+    }
+    The PlayerInfo object should have (at least) the bbox attribute in the form of a tuple (x_min, y_min, x_max, y_max).
+    """
+
     if player_dict is None or not player_dict:
         return frame
-    
+
+    players_color=[(0,255,255), (0,255,0), (0,0,255), (255,0,0)]
+
     for track_id, player_info in player_dict.items():
         bbox = player_info.bbox
         x1, y1, x2, y2 = bbox
         # bbox[0] = x_min     bbox[1] = y_min
-        if show_id:
-            cv2.putText(frame, f"Player {track_id}",(int(bbox[0]),int(bbox[1] -10 )),cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+        if only4:
+            #check if track_id is one of 1,2,3,4
+            if track_id not in {1,2,3,4}:
+                continue
+            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), players_color[track_id-1], 2)
+            if show_id:
+                cv2.putText(frame, f"Player {track_id}",(int(bbox[0]),int(bbox[1] -10 )),cv2.FONT_HERSHEY_SIMPLEX, 0.8, players_color[track_id-1], 2)
+        else:
+            cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
+            if show_id:
+                cv2.putText(frame, f"Player {track_id}",(int(bbox[0]),int(bbox[1] -10 )),cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
     
     return frame
 
@@ -133,7 +174,7 @@ def draw_ball(frame, ball_list):
 
 def draw_mini_court(frame, player_dict = None, balls = None, mouse_pos = None):
     """
-    Draw a mini volleyball court on the top left corner of the frame.
+    Draw a mini padel court on the top left corner of the frame.
     The court is 10x20 meters, with a net at the middle of the court.
     The players are drawn as circles on the court.
     
@@ -187,7 +228,7 @@ def draw_mini_court(frame, player_dict = None, balls = None, mouse_pos = None):
 
     frame = out     # TO SEE: maybe .copy() is needed?
 
-    # Draw court
+    # Draw court lines
     cv2.line(frame, (field_pos[0]       ,    3  *zoom+field_pos[1]) , (10*zoom+field_pos[0],      3  *zoom+field_pos[1]) , line_color, 2)  #horizontal
     cv2.line(frame, (field_pos[0]       ,   17  *zoom+field_pos[1]) , (10*zoom+field_pos[0],     17  *zoom+field_pos[1]) , line_color, 2)  #horizontal
     cv2.line(frame, (5*zoom+field_pos[0],int(2.7*zoom+field_pos[1])), ( 5*zoom+field_pos[0], int(17.3*zoom+field_pos[1])), line_color, 2)  #vertical

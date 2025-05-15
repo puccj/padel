@@ -38,8 +38,8 @@ class CsvAnalyzer:
         self.mean_interval = int(mean_interval or 1*self.fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
 
         self.all_data = self._read_csv(input_csv_path)
-        self.selected_ids_list = self._get_ids()
-        self.players_data = self._get_players_data()
+        self.selected_ids_list = self._calculate_ids()
+        self.players_data = self._calculate_players_data()
 
     def _read_fps(self):
         """Read the fps from the <cam_name>-fps.txt file."""
@@ -113,7 +113,7 @@ class CsvAnalyzer:
         
         return organized_data
 
-    def _get_ids(self):
+    def _calculate_ids(self):
         """Analyzes the organized data and returns the IDs of the 4 players throughout the video.
 
         Returns
@@ -237,7 +237,7 @@ class CsvAnalyzer:
         return selected_ids_list
     
 
-    def _get_players_data(self):
+    def _calculate_players_data(self):
         """Take selected_ids_list and return the data of the Players in each frame
         
         Returns
@@ -302,6 +302,12 @@ class CsvAnalyzer:
         # end for frame_data
 
         return players_data
+    
+    def get_selected_ids(self):
+        return self.selected_ids_list
+    
+    def get_players_data(self):
+        return self.players_data
 
     def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
         """Create heatmaps for each player, containing also distance and speed data.
@@ -621,6 +627,126 @@ class CsvAnalyzer:
         out_singles[2].release()
         out_singles[3].release()
         out_all.release()
+
+    def create_mini_court(self, input_path = 'Default', output_path = 'Default'):
+        # TODO: Put together the three periods in a single video
+        """Draw a post-processed mini-court on top of the original video.
+
+        Parameters
+        ----------
+        input_path : str, optional
+            Path to the input video. Defaults to "input_videos/{video_name}".
+        output_path : str, optional
+            Path where to save the video. If None, the video will be shown instead of saved.
+            Defaults to "to_be_uploaded/{video_name}-postanalyzed/".
+        """
+
+        # Remove "-period1" from the video name
+        if self.video_name.endswith("-period1"):
+            video_name = self.video_name[:-8]
+            starting_frame = 0
+        if self.video_name.endswith("-period2"):
+            video_name = self.video_name[:-8]
+            starting_frame = self.fps*60*30
+        if self.video_name.endswith("-period3"):
+            video_name = self.video_name[:-8]
+            starting_frame = self.fps*60*60
+
+        if input_path == 'Default':
+            input_path = f"input_videos/{video_name}.mp4"
+        
+        if output_path == 'Default':
+            output_path = f"to_be_uploaded/{video_name}-postanalyzed.mp4"
+
+        # Load the video
+        cap = cv2.VideoCapture(input_path)
+
+        if not cap.isOpened():
+            raise FileNotFoundError(f"Could not open video file: {input_path}")
+
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.set(cv2.CAP_PROP_POS_FRAMES, starting_frame)
+
+        if output_path is not None:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            # Create a VideoWriter object to save the output video
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out_video = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+        # Fixed variables
+        zoom = int(height / 40)
+        offset = 2*zoom
+        bg_color = (209, 186, 138)
+        field_color = (129, 94, 61)
+        line_color = (255, 255, 255)
+        net_color = (0, 0, 0)
+        alpha_field = 0.2
+        field_pos = (offset*2, offset*2)
+
+        players_color=[(0,255,255), (0,255,0), (0,0,255), (255,0,0)]
+        alpha_player = 0.05
+
+        frame_num = 0
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if frame_num >= len(self.players_data[0]):
+                print(f"Frame number {frame_num} exceeds the number of frames in the players data ({len(self.players_data[0])}).")
+                break
+
+            # Draw rectangles
+            shapes = np.zeros_like(frame,np.uint8)
+            cv2.rectangle(shapes, (field_pos[0]-offset, field_pos[1]-offset), (10*zoom+field_pos[0]+offset, 20*zoom+field_pos[1]+offset), bg_color, cv2.FILLED)
+            cv2.rectangle(shapes, field_pos, (10*zoom+field_pos[0], 20*zoom+field_pos[1]), field_color, cv2.FILLED)
+            # cv2.rectangle(shapes, (field_pos[0]-offset, int(20.25*zoom +field_pos[1]+offset)), (16*zoom+field_pos[0]+offset, 28*zoom+field_pos[1]), (125,125,125), cv2.FILLED)
+            out = frame.copy()
+            mask = shapes.astype(bool)
+            out[mask] = cv2.addWeighted(frame, alpha_field, shapes, 1 - alpha_field, 0)[mask]
+
+            frame = out     # TO SEE: maybe .copy() is needed?
+
+            frame = out     # TO SEE: maybe .copy() is needed?
+
+            # Draw court lines
+            cv2.line(frame, (field_pos[0]       ,    3  *zoom+field_pos[1]) , (10*zoom+field_pos[0],      3  *zoom+field_pos[1]) , line_color, 2)  #horizontal
+            cv2.line(frame, (field_pos[0]       ,   17  *zoom+field_pos[1]) , (10*zoom+field_pos[0],     17  *zoom+field_pos[1]) , line_color, 2)  #horizontal
+            cv2.line(frame, (5*zoom+field_pos[0],int(2.7*zoom+field_pos[1])), ( 5*zoom+field_pos[0], int(17.3*zoom+field_pos[1])), line_color, 2)  #vertical
+            cv2.line(frame, (field_pos[0]       ,   10  *zoom+field_pos[1]) , (10*zoom+field_pos[0],     10  *zoom+field_pos[1]) , net_color , 1)  #net
+
+            # Draw players on mini court
+            for player_num, player_data in enumerate(self.players_data):
+                player_info = player_data[frame_num]
+                if player_info['position'] is None:
+                    continue
+
+                # Draw the player position
+                cv2.circle(frame, (int(player_info['position'][0]*zoom+field_pos[0]),int(player_info['position'][1]*zoom+field_pos[1])), 1, players_color[player_num], 3, cv2.LINE_AA)
+
+                # Draw the speed and distance below the court
+                # text = f"Player {player_num+1}: {int(player_info['distance'])} m, {player_info['speed']:.2f} km/h"
+                # cv2.putText(frame, text, (field_pos[0]-offset, int(20*zoom+field_pos[1]+offset + (player_num+1)*25)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, players_color[player_num], 1, cv2.LINE_AA)
+
+            if output_path is None:
+                cv2.imshow("Mini Court", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            else:
+                out_video.write(frame)
+
+            frame_num += 1
+
+        # Release the video objects
+        cap.release()
+        if output_path is None:
+            cv2.destroyAllWindows()
+        else:
+            out_video.release()
+
 
     def create_graphs(self, output_path = 'Default', figsize=(8, 6)):
         """Create both the speed and the distance graphs showing the speed and distance of each player over time.
