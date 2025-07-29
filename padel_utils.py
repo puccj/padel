@@ -162,12 +162,11 @@ def draw_bboxes(frame, player_dict, show_id = False, only4 = False):
     
     return frame
 
-def draw_ball(frame, ball_list):
-    if ball_list is None or not ball_list:
+def draw_balls(frame, balls_bbox):
+    if balls_bbox.size == 0:
         return frame
-    
-    for ball in ball_list:
-        x1, y1, x2, y2 = ball
+
+    for x1, y1, x2, y2 in balls_bbox:
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 255, 0), 2)
     
     return frame

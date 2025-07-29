@@ -2,10 +2,10 @@ from padel_analyzer import PadelAnalyzer
 from csv_analyzer import CsvAnalyzer
 import argparse
 
-def main(input_video_path, cam_name='test', second_camera=False, recalculate=False, show_video=False, debug=False, mini_court=True):
+def main(input_video_path, cam_name='test', cam_type=None, second_camera=False, recalculate=False, show_video=False, debug=False, mini_court=True):
     
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
-    analyzer = PadelAnalyzer(input_video_path, cam_name, second_camera=second_camera, recalculate=recalculate, save_interval=200)
+    analyzer = PadelAnalyzer(input_video_path, cam_name, cam_type, second_camera=second_camera, recalculate=recalculate, save_interval=200)
 
     out_video, fps, out_csvs = analyzer.process(model=PadelAnalyzer.Model.ACCURATE, show=show_video, debug=debug, mini_court=mini_court)
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
@@ -22,12 +22,16 @@ def main(input_video_path, cam_name='test', second_camera=False, recalculate=Fal
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', '--input_path', type=str, default='input_videos/test.mp4', help='input image path')
-    parser.add_argument('-n', '--name', type=str, default='test', help='camera name')
+    parser.add_argument('-n', '--name', type=str, default='test', help='camera name (e.g: LU01, ST05, etc...)')
+    parser.add_argument('-t', '--type', type=str, default=None, 
+                        help='camera model name (or an alias of it). If set to None (default), no fisheye correction will be applied.')
     parser.add_argument('-r', '--recalculate', action=argparse.BooleanOptionalAction, help='recalculate camera matrices and fps')
     parser.add_argument('-s', '--show',  action=argparse.BooleanOptionalAction, help='show video')
     parser.add_argument('-d', '--debug', action=argparse.BooleanOptionalAction, help='debug mode')
     parser.add_argument('-m', '--mini_court', action=argparse.BooleanOptionalAction, help='draw mini court')
-    parser.add_argument('-c', '--camera', '--second_camera', action=argparse.BooleanOptionalAction, help='second camera')
+    parser.add_argument('-c', '--camera', '--second_camera', action=argparse.BooleanOptionalAction, 
+                        help='flag to indicate if this is the second camera and the measurements ' \
+                        'should be flipped (e.g: up corner is (10,20) instead of (0,0))')
     args = parser.parse_args()
     
-    main(args.path, args.name, args.camera, args.recalculate, args.show, args.debug, args.mini_court)
+    main(args.path, args.name, args.type, args.camera, args.recalculate, args.show, args.debug, args.mini_court)

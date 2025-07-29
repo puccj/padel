@@ -6,18 +6,16 @@ class BallTracker:
         self.conf_thres = conf_thres
 
     def detect(self, frame):
-        """ Detects the ball in the frame and returns a dictionary with the ball ID as key and the bbox as value """
+        """ Detects the ball in the frame and returns a list of tuples containing bboxes and confidence scores."""
+        results = self.model(frame, conf=self.conf_thres, verbose=False)[0]
+        
+        balls = [(box.xyxy.tolist()[0], box.conf.item()) for box in results.boxes] #if box.conf.item() > self.conf_thres)
 
-        # persist=True tells the tracks that this is not just an individaul frame, but other
-        # frames will be given afterwards and the model should persist the track in those frames.
-        results = self.model(frame, conf=self.conf_thres)[0]
-        id_name_dict = results.names
-
-        balls = []
-        # Here we only want the ball -> we'll exclude everything else. 
-        # Also, since we have another separate track for the players, we exclude them as well.
-        for box in results.boxes:
-            result = box.xyxy.tolist()[0]
-            balls.append(result)
+        # Equivalent to:
+        # balls = []
+        # for box in results.boxes:
+        #     bbox = box.xyxy.tolist()[0]
+        #     conf = box.conf.item()
+        #     balls.append((bbox, conf))
 
         return balls

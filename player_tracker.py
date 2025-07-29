@@ -61,21 +61,19 @@ class PlayerTracker:
         # frames will be given afterwards and the model should persist the track in those frames.
         results = self.model.track(frame, persist=True)[0]
         # results = self.model.track(frame, persist=True, tracker="bytetrack.yaml")[0]
-        id_name_dict = results.names
 
         player_dict = {}
         # Here we only want people -> we'll exclude everything else. 
         # Also, since we have another separate track for the ball, we exclude that as well.
         for i, box in enumerate(results.boxes):
+            if box.cls.tolist()[0] != 0:  # Assuming 0 is the class ID for "person"
+                continue
             track_id = box.id
             if track_id is None:
                 track_id = i
             else:
                 track_id = int(track_id.tolist()[0])
             result = box.xyxy.tolist()[0]       #xyxy format means x_min y_min , x_max y_max
-            object_cls_id = box.cls.tolist()[0]
-            object_cls_name = id_name_dict[object_cls_id]
-            if object_cls_name == "person":
-                player_dict[track_id] = result
+            player_dict[track_id] = result
 
         return player_dict    

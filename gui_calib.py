@@ -70,10 +70,13 @@ class Fisheye:
         # Show some stuff
         self.on_trackbar(0)
         # Wait until user press some key
-        print('Press a key to continue')
-        cv2.waitKey()
-        
-        
+        print('Press a key to continue. Press "q" or ESC to quit without saving (no perspective correction will be applied).')
+        k = cv2.waitKey()
+        if k == ord('q') or k == 27:
+            cv2.destroyAllWindows()
+            print('Operation aborted by user. Returning None parameters.')
+            return None, None
+
         mtx, dist = self.get_track_vals()
         print('\nmtx:\n',mtx)
         print('\ndist:\n',dist,'\n\n')
