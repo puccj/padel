@@ -329,7 +329,7 @@ class PadelAnalyzer:
                 success, original = self.cap.read()
             while self.file_opened and key != ord('n') and (key != 32 or count < 4):
                 # Use undistorted image
-                if self.K and self.D:
+                if self.K is not None and self.D is not None:
                     size = (int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
                     map1, map2 = cv2.fisheye.initUndistortRectifyMap(self.K, self.D, np.eye(3), self.K, size, cv2.CV_16SC2)
                     frame = cv2.remap(original, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
