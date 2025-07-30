@@ -17,10 +17,6 @@ from padel_utils import get_feet_positions, load_fisheye_params, transform_point
 # TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
 class PadelAnalyzer:
-    class Model(Enum):
-        FAST = 1
-        MEDIUM = 2
-        ACCURATE = 3
 
     def __init__(self, input_path, cam_name=None, cam_type=None, second_camera=False, output_video_path=None, output_csv_path=None, save_interval=100, recalculate=False):
         """
@@ -110,7 +106,7 @@ class PadelAnalyzer:
             with open(csv_path, 'w', newline='') as csvfile:
                 pass    # Create the file (erasing it if it already exists)
 
-    def process(self, model=Model.ACCURATE, show=False, debug=False, mini_court=True):
+    def process(self, model='models/yolov8x', ball_model='models/ball_model.pt', show=False, debug=False, mini_court=True):
         """
         Process all the frames of the video, detecting players and saving their positions in a CSV file.
         3 CSV files are created, one for each period of the game.
@@ -118,7 +114,9 @@ class PadelAnalyzer:
         Parameters
         ----------
         model : Model, optional
-            The YOLO model to use for player detection. Options are Model.ACCURATE, Model.MEDIUM, and Model.FAST. Default is Model.ACCURATE.
+            The YOLO model to use for player detection. Default is 'models/yolov8x'.
+        ball_model : str, optional
+            Path to the YOLO model for ball detection. Default is 'models/ball_model.pt'.
         show : bool, optional
             If True, the video will be displayed while processing. Default is False.
         debug : bool, optional
@@ -154,17 +152,9 @@ class PadelAnalyzer:
         
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
-        
-        # Choosing model
-        if model == PadelAnalyzer.Model.ACCURATE:
-            model = 'models/yolov8x'
-        elif model == PadelAnalyzer.Model.MEDIUM:
-            model = 'models/yolov8m'
-        elif model == PadelAnalyzer.Model.FAST:
-            model = 'models/yolov8n'
 
-        player_tracker = PlayerTracker(model_path=model)
-        ball_tracker = BallTracker(model_path='models/ball_model.pt')
+        player_tracker = PlayerTracker(model)
+        ball_tracker = BallTracker(ball_model)
         all_frame_data = [None] * self.save_interval
         
 
@@ -206,7 +196,6 @@ class PadelAnalyzer:
                 'frame_num': frame_num,
                 'balls': ball_positions,
                 'players': player_dict #or {} # If player_dict is None, use an empty dictionary
-
             }
             # Instead of deleting, I'll just save starting all over
             all_frame_data[frame_num % self.save_interval] = frame_data
