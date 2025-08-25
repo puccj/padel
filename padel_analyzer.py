@@ -106,7 +106,7 @@ class PadelAnalyzer:
             with open(csv_path, 'w', newline='') as csvfile:
                 pass    # Create the file (erasing it if it already exists)
 
-    def process(self, model='models/yolov8x', ball_model='models/ball_model.pt', show=False, debug=False, mini_court=True):
+    def process(self, model='models/yolov11x.pt', ball_model='models/ball-11x-1607.pt', show=False, debug=False, mini_court=True):
         """
         Process all the frames of the video, detecting players and saving their positions in a CSV file.
         3 CSV files are created, one for each period of the game.
@@ -114,9 +114,9 @@ class PadelAnalyzer:
         Parameters
         ----------
         model : Model, optional
-            The YOLO model to use for player detection. Default is 'models/yolov8x'.
+            The YOLO model to use for player detection. Default is 'models/yolov11x.pt'.
         ball_model : str, optional
-            Path to the YOLO model for ball detection. Default is 'models/ball_model.pt'.
+            Path to the YOLO model for ball detection. Default is 'models/ball-11x-1607.pt'.
         show : bool, optional
             If True, the video will be displayed while processing. Default is False.
         debug : bool, optional

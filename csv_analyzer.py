@@ -141,13 +141,29 @@ class CsvAnalyzer:
                 if detection['id'] in ids_in_field:
                     id_counter[detection['id']] += 1
 
+        # Sort id by frequency (descending order)
+        sorted_ids = [id for id, _ in id_counter.most_common()]
+        assigned_ids = set()
 
         # Initialize selected_ids_list with 4 IDs that *needs* to belong to different players
 
         # Option A (The easy way): just take the first (valid) 4 in cronological order (i.e the minimum values)
-        starting_ids = sorted(ids_in_field)[:4]
+        # starting_ids = sorted(ids_in_field)[:4]
 
-        # Option B (The better way): starting from the most common IDs, going down to the less common untill we find 4 IDs that are present in the same frame
+        # Option B (The middle way): the the first (valid) 4 IDs after 5 minutes of video
+        starting_ids = []
+        for frame_data in self.all_data:
+            if frame_data['frame_num'] < self.fps*60*5:  # 5 minutes
+                continue
+            for detection in frame_data['detections']:
+                if detection['id'] in ids_in_field and detection['id'] not in starting_ids:
+                    starting_ids.append(detection['id'])
+                if len(starting_ids) == 4:
+                    break
+            if len(starting_ids) == 4:
+                break
+
+        # Option C (The better way): starting from the most common IDs, going down to the less common untill we find 4 IDs that are present in the same frame
         # # Get the 4 most common IDs and use to initialize the selected_ids sets
         # # TODO: Warning: it could happen that two of the most common IDs are the same player.
         # #       For now I'll just check if all 4 most common IDs are simultaneously present at least in one frame 
@@ -158,6 +174,8 @@ class CsvAnalyzer:
         # most_common_ids = [id for id, _ in id_counter.most_common(4)]
         # starting_ids = most_common_ids
 
+        print(f"Debug: starting IDs: {starting_ids}")
+
         # Check if the 4 starting IDs are present in the same frame
         all_together = False
         for frame_data in self.all_data:
@@ -166,74 +184,61 @@ class CsvAnalyzer:
                 all_together = True
                 break
         if not all_together:
-            raise NotImplementedError("The 4 starting IDs are not present in a same frame. Unsure if they belong to different players. Aborting...")
-        
+            raise NotImplementedError(f"The 4 starting IDs {starting_ids} are not present in a same frame. Unsure if they belong to different players. Aborting...")
+
+        # Remove Assigned IDs for all players
         selected_ids_list = [set([starting_ids[i]]) for i in range(4)]
         for available_ids in available_ids_list:
-            available_ids.difference_update(starting_ids)  # Assigned IDs are not available for anyone
+            available_ids.difference_update(starting_ids)
+        assigned_ids.update(starting_ids)
 
-        #TODO: Make this a function
-        # If an ID is present in the same frame as the ID representing a player, it is descarded for that player, since it can't be the same player
-            # for frame_data in all_data:
-            #     frame_players_ids = [player['id'] for player in frame_data['players']]
-            #     for i, selected_ids in enumerate(selected_ids_list):
-            #         for selected_id in selected_ids:
-            #             if selected_id in frame_players_ids:
-            #                 available_ids_list[i].difference_update([id for id in frame_players_ids if id != selected_id])
+        # TODO: Below a repetition of this code: it could be a function
+        # Remove conflicts from available_ids_list.
+        # There is a conflict if an ID is present in the same frame as the ID representing a player.
+        # In that case, it is discarded for that player, since it can't represent the same player.
+        # TODO: Instead of removing the ID if present together in a single frame, remove it only if present together in N frames
         for frame_data in self.all_data:
-            frame_detections_ids = [detection['id'] for detection in frame_data['detections']]
+            frame_ids = [d['id'] for d in frame_data['detections']]
             for i, selected_id in enumerate(starting_ids):
-                if selected_id in frame_detections_ids:
-                    # TODO: check which of the following is faster:
-                    # available_ids_list[i].difference_update([id for id in frame_detections_ids if id != selected_id])
-                    available_ids_list[i].difference_update([id for id in frame_detections_ids])
+                if selected_id in frame_ids:
+                    available_ids_list[i].difference_update(frame_ids)  # Remove all IDs present in the same frame as selected_id
 
-        # Check if there are still available IDs for each player. If so, add them to the selected_ids (and remove from available)
-        
-        #while there are element in at least one of the available_ids_list
-        while any(available_ids_list):
-            multiple_ids = set()    # will contain the IDs present in more than one available_ids list
-            added_ids = [None]*4    # will contain the ID added for each player
-            detection_to_take = -1     # index of the detection that will be checked
+        # Now, iteratively assign IDs to players
 
-            while not any(added_ids):
-                one_is_long_enough = False
-                detection_to_take += 1
+        # while there are element in at least one of the available_ids_list
+        while any(available_ids_list):  # let an iteration of this loop be called a 'round'
+            assigned = False    # check if any ID was assigned in this round
+            # Traverse IDs in descending order of frequency
+            for cand in sorted_ids:
+                if cand in assigned_ids:
+                    continue
 
-                for i, available_ids in enumerate(available_ids_list):    #for each Player
-                    if len(available_ids) <= detection_to_take:
-                        # TODO: remove this debug print
-                        print(f"Player {i} has not enough available IDs to check the {detection_to_take}th most common ID")
-                        continue
-                    one_is_long_enough = True
-                    sorted_id = sorted(available_ids, key = lambda id: id_counter[id], reverse=True)[detection_to_take]
-                    # sorted_ids[0]   #take the most common id available
+                # Find with players still have this candidate
+                possible_players = [i for i in range(4) if cand in available_ids_list[i]]
 
-                    in_other_list = False
-                    for j in range(len(available_ids_list)):   #see if it is contained in other lists
-                        if i != j and sorted_id in available_ids_list[j]:
-                            multiple_ids.add(sorted_id)
-                            in_other_list = True
-                            break
-                
-                    if not in_other_list:
-                        selected_ids_list[i].add(sorted_id)
-                        available_ids_list[i].remove(sorted_id)     # (for other available_ids, the ID is not available as already checked)
-                        added_ids[i] = sorted_id
-                
-                if not one_is_long_enough:
-                    print("Some IDs are not assigned, because available for more than one player and unable to decide")
-                    print("Unassigned IDs: ", available_ids_list[0])    # just the first one is enough, since they are all the same
-                    return selected_ids_list
-            #end while: so some IDs are added
+                if len(possible_players) == 1:  # Assign the ID to the player
+                    i = possible_players[0]
+                    selected_ids_list[i].add(cand)
+                    # available_ids_list[i].remove(cand) will be removed later (in frame_ids)
+                    assigned_ids.add(cand)
+                    assigned = True
 
-            # If an ID is present in the same frame as the ID representing a player, it is descarded for that player, since it can't be the same player
-            for frame_data in self.all_data:
-                frame_detections_ids = [detection['id'] for detection in frame_data['detections']]
-                for i, added_id in enumerate(added_ids):
-                    if added_id in frame_detections_ids:
-                        available_ids_list[i].difference_update([id for id in frame_detections_ids if id != added_id])
-            
+                    # Remove conflicts (co-occurrences) for this player
+                    for frame_data in self.all_data:
+                        frame_ids = [d['id'] for d in frame_data['detections']]
+                        if cand in frame_ids:
+                            available_ids_list[i].difference_update(frame_ids)
+
+                    break  # break the for cand loop and restart from the most common ID
+
+            if not assigned:
+                print("Some IDs are not assigned, because available for more than one player and unable to decide")
+                print("Unassigned IDs: ", available_ids_list[0])    # just the first one is enough, since they are all the same
+                # sort unassigned ID by frequency:
+                unassigned_ids = sorted(available_ids_list[0], key=lambda x: id_counter[x], reverse=True)
+                print("Sorted: ", unassigned_ids)
+                return selected_ids_list
+
         return selected_ids_list
     
 
