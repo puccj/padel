@@ -48,8 +48,8 @@ if __name__ == "__main__":
                         'should be flipped (e.g: up corner is (10,20) instead of (0,0))')
     parser.add_argument('-M', '--model', type=str, default='models/yolo11x.pt',
                         help='path to the YOLO model for player detection. Default is "models/yolo11x.pt".')
-    parser.add_argument('-b', '--ball_model', type=str, default='/home/lookatme/padel/models/ball-11x-1607.pt',
-                        help='path to the YOLO model for ball detection. Default is "/home/lookatme/padel/models/ball-11x-1607.pt".')
+    parser.add_argument('-b', '--ball_model', type=str, default='models/ball-11x-1607.pt',
+                        help='path to the YOLO model for ball detection. Default is "models/ball-11x-1607.pt".')
     parser.add_argument('-r', '--recalculate', action=argparse.BooleanOptionalAction, help='recalculate camera matrices and fps')
     parser.add_argument('-s', '--show',  action=argparse.BooleanOptionalAction, help='show video')
     parser.add_argument('-d', '--debug', action=argparse.BooleanOptionalAction, help='debug mode')

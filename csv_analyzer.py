@@ -348,9 +348,13 @@ class CsvAnalyzer:
         return players_data
     
     def get_selected_ids(self):
+        """Returns a list of 4 sets, each containing the IDs of a player."""
         return self.selected_ids_list
     
     def get_players_data(self):
+        """Returns a list of 4 lists (one per Players), each containing a dictionary for each frame.
+        Each dictionary contains the 'position', 'distance' and 'speed' of the player in that frame.
+        """
         return self.players_data
 
     def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
