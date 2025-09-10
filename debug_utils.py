@@ -1,6 +1,5 @@
 """Debugging and testing utilities, that won't be used during normal execution."""
 
-
 import cv2
 from padel_utils import transform_points
 from ultralytics import YOLO

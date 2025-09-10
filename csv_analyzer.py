@@ -357,7 +357,7 @@ class CsvAnalyzer:
         """
         return self.players_data
 
-    def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue'], draw_net=False):
+    def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue']):
         """Create heatmaps for each player, containing also distance and speed data.
         
         Parameters
@@ -382,10 +382,7 @@ class CsvAnalyzer:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         # Background
-        if draw_net:
-            court_img = mpimg.imread('Field with net.png')
-        else:
-            court_img = mpimg.imread('Field.png')
+        court_img = mpimg.imread('field.png')
         bg_color = (0.54, 0.73, 0.82)
 
         for i, player_data in enumerate(self.players_data):    # for each player
@@ -542,7 +539,7 @@ class CsvAnalyzer:
             plt.show()
 
 
-    def create_videos(self, output_path = 'Default', field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05):
+    def create_videos(self, output_path = 'Default', field_height=800, speed_factor=2, trace=0, alpha=0.05):
         #TODO See output_path when None...
         """Create a video showing the heatmap of the players over time.
 
@@ -553,8 +550,6 @@ class CsvAnalyzer:
             Defaults to "to_be_uploaded/{video_name}-heatmaps/".
         field_height : int, optional
             Height of the field in pixels. Defaults to 800.
-        draw_net : bool, optional
-            Whether to draw the net on the field. Defaults to False.
         speed_factor : int, optional
             Factor by which to speed up the video. Defaults to 2.
         trace : int, optional
@@ -590,10 +585,7 @@ class CsvAnalyzer:
         # Place the field image in the background
         bg_single = np.full((height_single, width_single, 3), bg_color, dtype=np.uint8)
         bg_all = np.full((height_all, width_all, 3), bg_color, dtype=np.uint8)
-        if draw_net:
-            court_img = cv2.imread('Field with net.png')
-        else:
-            court_img = cv2.imread('Field.png')
+        court_img = cv2.imread('field.png')
         court_img = cv2.resize(court_img, (field_width, field_height))
         bg_single[offset:offset+field_height, offset:offset+field_width] = court_img
         bg_all[offset:offset+field_height, offset:offset+field_width] = court_img

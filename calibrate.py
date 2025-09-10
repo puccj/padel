@@ -8,12 +8,11 @@ import os
 import glob
 
 def extract_frames(video_path, output_folder):
-    # Create output folder if it doesn't exist
+    """ Extract frames from a video and save them as images in the specified output folder. """
+    
     os.makedirs(output_folder, exist_ok=True)
-
-    # Open the video file
+    
     cap = cv2.VideoCapture(video_path)
-
     if not cap.isOpened():
         print(f"Error: Cannot open video {video_path}")
         return
