@@ -41,7 +41,7 @@ def load_detections_from_csv(csv_path: str) -> pd.DataFrame:
 class SimpleBallTracker:
     """Simple ball tracker that maintains consistent IDs across frames."""
     
-    def __init__(self, max_distance: float = 50.0, max_lost_frames: int = 10):
+    def __init__(self, max_distance: float = 150.0, max_lost_frames: int = 120):
         self.max_distance = max_distance
         self.max_lost_frames = max_lost_frames
         self.tracks = {}  # {track_id: {'centroid': (x, y), 'last_seen': frame_num}}
@@ -115,10 +115,45 @@ class SimpleBallTracker:
         return updated_detections
 
 
+def filter_tracks(tracked_detections: List[Dict], min_detections: int = 5) -> List[Dict]:
+    """
+    Simple filter to remove tracks with too few detections.
+    
+    Parameters
+    ----------
+    tracked_detections : List[Dict]
+        List of tracked detections
+    min_detections : int
+        Minimum number of detections to consider a track valid
+        
+    Returns
+    -------
+    List[Dict]
+        Filtered detections
+    """
+    # Group detections by track ID
+    tracks = defaultdict(list)
+    for det in tracked_detections:
+        tracks[det['ball_id']].append(det)
+    
+    # Filter tracks based on minimum detection count
+    filtered_detections = []
+    for track_id, track_detections in tracks.items():
+        if len(track_detections) < min_detections:
+            print(f"Removing track {track_id} (too few detections: {len(track_detections)})")
+            continue
+        
+        filtered_detections.extend(track_detections)
+        print(f"Keeping track {track_id} ({len(track_detections)} detections)")
+    
+    return filtered_detections
+
+
 def process_detections(input_csv: str, 
                       output_csv: str,
-                      max_distance: float = 50.0,
-                      max_lost_frames: int = 10) -> Dict:
+                      max_distance: float = 150.0,
+                      max_lost_frames: int = 120,
+                      min_detections: int = 5) -> Dict:
     """
     Process ball detections to assign consistent IDs.
     
@@ -132,6 +167,8 @@ def process_detections(input_csv: str,
         Maximum distance for track association
     max_lost_frames : int
         Maximum frames a track can be lost
+    min_detections : int
+        Minimum number of detections to consider a track valid
         
     Returns
     -------
@@ -178,10 +215,16 @@ def process_detections(input_csv: str,
                 'confidence': det['confidence']
             })
     
-    print(f"Created {len(tracker.tracks)} unique tracks")
+    # Count unique tracks before filtering
+    unique_tracks_before = len(set(det['ball_id'] for det in tracked_detections))
+    print(f"Created {unique_tracks_before} unique tracks")
     
-    # Write tracked detections to output CSV
-    print(f"Writing tracked detections to {output_csv}...")
+    # Filter tracks with too few detections
+    print(f"Filtering tracks (min detections: {min_detections})...")
+    filtered_detections = filter_tracks(tracked_detections, min_detections)
+    
+    # Write filtered detections to output CSV
+    print(f"Writing filtered detections to {output_csv}...")
     
     # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
@@ -190,7 +233,7 @@ def process_detections(input_csv: str,
         writer = csv.writer(csvfile)
         writer.writerow(['frame_num', 'ball_id', 'x1', 'y1', 'x2', 'y2', 'confidence'])
         
-        for det in tracked_detections:
+        for det in filtered_detections:
             writer.writerow([
                 det['frame_num'],
                 det['ball_id'],
@@ -201,16 +244,23 @@ def process_detections(input_csv: str,
                 det['confidence']
             ])
     
+    # Count unique tracks in filtered results
+    unique_tracks_after_filter = len(set(det['ball_id'] for det in filtered_detections))
+    
     stats = {
         "total_detections": len(df),
         "tracked_detections": len(tracked_detections),
-        "unique_tracks": len(tracker.tracks)
+        "filtered_detections": len(filtered_detections),
+        "unique_tracks_before": unique_tracks_before,
+        "unique_tracks_after": unique_tracks_after_filter
     }
     
-    print(f"Tracking complete!")
+    print(f"Processing complete!")
     print(f"  Total detections: {stats['total_detections']}")
     print(f"  Tracked detections: {stats['tracked_detections']}")
-    print(f"  Unique tracks: {stats['unique_tracks']}")
+    print(f"  Filtered detections: {stats['filtered_detections']}")
+    print(f"  Unique tracks (before filter): {stats['unique_tracks_before']}")
+    print(f"  Unique tracks (after filter): {stats['unique_tracks_after']}")
     
     return stats
 
@@ -222,10 +272,12 @@ def main():
                        help='Input directory containing CSV files (default: data/intermediate)')
     parser.add_argument('--output-dir', type=str, default='data/processed',
                        help='Output directory for tracked CSV files (default: data/processed)')
-    parser.add_argument('--max-distance', type=float, default=300.0,
-                       help='Maximum distance for track association (default: 50.0)')
-    parser.add_argument('--max-lost-frames', type=int, default=90,
-                       help='Maximum frames a track can be lost (default: 10)')
+    parser.add_argument('--max-distance', type=float, default=150.0,
+                       help='Maximum distance for track association (default: 150.0)')
+    parser.add_argument('--max-lost-frames', type=int, default=120,
+                       help='Maximum frames a track can be lost (default: 120)')
+    parser.add_argument('--min-detections', type=int, default=5,
+                       help='Minimum number of detections to consider a track valid (default: 5)')
     parser.add_argument('--input-file', type=str, default=None,
                        help='Process only a specific CSV file (optional)')
     
@@ -248,13 +300,16 @@ def main():
     print(f"Found {len(csv_files)} CSV file(s) to process")
     print(f"Max distance: {args.max_distance} pixels")
     print(f"Max lost frames: {args.max_lost_frames}")
+    print(f"Min detections: {args.min_detections}")
     print("-" * 50)
     
     # Process each CSV file
     total_stats = {
         "total_detections": 0,
         "tracked_detections": 0,
-        "unique_tracks": 0
+        "filtered_detections": 0,
+        "unique_tracks_before": 0,
+        "unique_tracks_after": 0
     }
     
     for csv_file in csv_files:
@@ -268,7 +323,8 @@ def main():
                 csv_file, 
                 output_file,
                 args.max_distance,
-                args.max_lost_frames
+                args.max_lost_frames,
+                args.min_detections
             )
             
             # Accumulate statistics
@@ -283,7 +339,9 @@ def main():
     print("Overall Statistics:")
     print(f"  Total detections: {total_stats['total_detections']}")
     print(f"  Tracked detections: {total_stats['tracked_detections']}")
-    print(f"  Unique tracks: {total_stats['unique_tracks']}")
+    print(f"  Filtered detections: {total_stats['filtered_detections']}")
+    print(f"  Unique tracks (before filter): {total_stats['unique_tracks_before']}")
+    print(f"  Unique tracks (after filter): {total_stats['unique_tracks_after']}")
 
 
 if __name__ == "__main__":
