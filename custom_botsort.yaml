@@ -1,0 +1,25 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+# BoT-SORT tracker optimized for Padel Tennis
+# Static camera, ball tracking challenges, player interactions
+
+tracker_type: botsort # (str) Tracker backend: botsort|bytetrack; choose botsort to enable BoT-SORT features
+
+# Detection thresholds - optimized for padel
+track_high_thresh: 0.3 # (float) Raised from 0.25 - cleaner tracks for players, reduces false ball detections
+track_low_thresh: 0.15 # (float) Raised from 0.1 - better balance for ball recovery vs noise
+new_track_thresh: 0.3 # (float) Raised from 0.25 - reduces false tracks, especially for ball
+
+# Tracking persistence - crucial for ball tracking
+track_buffer: 200 # (int) Increased from 100 - keeps ball tracks alive longer during occlusions
+match_thresh: 0.6 # (float) Lowered from 0.8 - more lenient matching for ball recovery
+fuse_score: True # (bool) Keep enabled - helps with weak ball detections
+
+# BoT-SORT specifics - optimized for static camera
+gmc_method: none # (str) Disabled since camera is static - saves computation and avoids drift
+
+# ReID model - optimized for player interactions
+proximity_thresh: 0.3 # (float) Raised from 0.2 - stricter for player proximity, reduces ID swaps
+appearance_thresh: 0.75 # (float) Lowered from 0.8 - more lenient for player appearance changes
+with_reid: True # (bool) Keep enabled - essential for player re-identification after hugs/crosses
+model: auto # (str) ReID model name/path; "auto" uses detector features if available
