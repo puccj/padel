@@ -195,7 +195,7 @@ class PadelAnalyzer:
             frame_data = {
                 'frame_num': frame_num,
                 'balls': ball_positions,
-                'players': player_dict #or {} # If player_dict is None, use an empty dictionary
+                'players': player_dict # Note that player_dict could be None if no players are detected
             }
             # Instead of deleting, I'll just save starting all over
             all_frame_data[frame_num % self.save_interval] = frame_data
@@ -228,6 +228,8 @@ class PadelAnalyzer:
             out.write(frame)
         
             frame_num += 1
+
+        # ----- End of main loop -----
 
         cv2.destroyAllWindows()
         self.cap.release()
@@ -397,7 +399,7 @@ class PadelAnalyzer:
     def _calculate_positions(self, detected_dict):
         """ 
         Calculate positions (in meter) of players, applying fish-eye correction and perspective transformation.
-        Given the detected dictionary {ID, bbox}, return {ID, (bbox, position)}
+        Given the detected dictionary {ID, bbox}, returns {ID, (bbox, position)}
         """
         if not detected_dict:
             return {}
@@ -423,7 +425,8 @@ class PadelAnalyzer:
 
         return positions
 
-    def _save_data_to_csv(self, data, path):
+    @staticmethod
+    def _save_data_to_csv(data, path):
         with open(path, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             
@@ -431,5 +434,6 @@ class PadelAnalyzer:
                 row = [frame_data['frame_num']]
                 for player_id, player_info in frame_data['players'].items():
                     row.append(player_id)
+                    row.append([int(x) for x in player_info.bbox])
                     row.append(player_info.position)
                 writer.writerow(row)

@@ -2,6 +2,21 @@ from padel_analyzer import PadelAnalyzer
 from csv_analyzer import CsvAnalyzer
 import argparse
 
+def extract_frame(video_path, frame_number, output_image_path='together_frame.png'):
+    import cv2
+
+    cap = cv2.VideoCapture(video_path)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+    ret, frame = cap.read()
+    if ret:
+        cv2.imwrite(output_image_path, frame)
+        print(f"Frame {frame_number} extracted and saved to {output_image_path}")
+    else:
+        print(f"Failed to extract frame {frame_number}")
+
+    cap.release()
+
 def main(input_video_path,
          cam_name='test', 
          cam_type=None,
@@ -24,6 +39,10 @@ def main(input_video_path,
 
     for i, csv in enumerate(out_csvs):
         csv_analyzer = CsvAnalyzer(csv, fps)
+        
+        together_frame = csv_analyzer.get_together_frame()
+        extract_frame(input_video_path, together_frame, output_image_path=f'together_frame_period_{i+1}.png')
+
         csv_analyzer.create_heatmaps(alpha=0.05, draw_net=False)
         csv_analyzer.create_videos(field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05)
         # csv_analyzer.create_heatmaps_and_video(field_height=800, draw_net=False, trace=0, alpha=0.05, speed_factor=2, trace=0, alpha=0.05)
