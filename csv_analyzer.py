@@ -407,6 +407,7 @@ class CsvAnalyzer:
         #       players don't exit the field, but jump over the net
         # TODO: I can consider that a player exits the field if now is out, before was in (near the exit_zone) and the next N frames is out too
 
+        X_EXIT_DISTANCE = 1.0 # max x distance from the field border to consider a player near the exit
         Y_EXIT_ZONE = (9, 11) # y coordinate of the exit zone near the net: a player exiting should be near this area before exiting
 
         period_ends = []
@@ -420,28 +421,45 @@ class CsvAnalyzer:
             if frame_num - last_end_frame < self.fps*60*(30-10) or frame_num - last_end_frame > self.fps*60*(30+15):
                 continue
 
+            prev_frame_num = max(0, frame_num - int(self.fps*0.5))   # check 0.5 seconds before
+            prev_data = self.all_data[prev_frame_num]
+            prev_positions = {d['id']: d['position'] for d in prev_data['detections']}
+
             for detection in frame_data['detections']:
                 if detection['id'] in exit_events:  # Skip IDs that are already counted
                     continue
 
-                # Check if that a player exited the field (i.e now it is outside while before was inside)
-                if not is_inside_field(detection['position']): # now is outside
+                # Check if that a player exited the field (i.e. now it is outside while before was inside near exit zone)
+                if not is_inside_field(detection['position']):
                     id = detection['id']
-                    prev_frame_num = max(0, frame_num - int(self.fps*0.5))   # check 0.5 seconds before
-                    for prev_detection in self.all_data[prev_frame_num]['detections']:
-                        # Require that the same player was inside the field 0.5s before
-                        # and that the previous y position was near the middle of the field (9 < y < 11)
-                        if (prev_detection['id'] == id 
-                            and is_inside_field(prev_detection['position']) 
-                            and Y_EXIT_ZONE[0] < prev_detection['position'][1] < Y_EXIT_ZONE[1]
-                        ):
-                            # print(f"Debug: Player {id} exited the field at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d})"
-                            #       f" - prev_y={prev_detection['position'][1]:.2f}")
-                            exit_events[id] = frame_num
-                            break
-
+                    prev_position = prev_positions.get(id)
+                    if prev_position and is_inside_field(prev_position) and Y_EXIT_ZONE[0] < prev_position[1] < Y_EXIT_ZONE[1]:
+                        # print(f"Debug: Player {id} exited the field at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d}) - prev_y={prev_position[1]:.2f}")
+                        exit_events[id] = frame_num
+                        break
+                
+                if len(exit_events) >= 4:
+                    break
+            
             # Remove exit events older than 60 seconds (keep as dictionary)
             exit_events = {id: frame for id, frame in exit_events.items() if frame_num - frame < self.fps*60}
+
+            if len(exit_events) < 4:
+                # Check if a player may have exited the field (i.e. disappeared near exit zone)
+                current_ids = set(d['id'] for d in frame_data['detections'])
+                lost_ids = set(prev_positions.keys()) - current_ids
+
+                for id in lost_ids:
+                    if id in exit_events:
+                        continue
+                    
+                    prev_position = prev_positions.get(id)
+                    if (prev_position and is_inside_field(prev_position) 
+                        and Y_EXIT_ZONE[0] < prev_position[1] < Y_EXIT_ZONE[1]
+                        and (prev_position[0] < X_EXIT_DISTANCE or prev_position[0] > 10-X_EXIT_DISTANCE)
+                    ):
+                        # print(f"Debug: Player {id} lost at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d}) - prev={prev_position}. Counting as exit.")
+                        exit_events[id] = frame_num
 
             if len(exit_events) >= 4:
                 # print(f"Debug: Detected period end at frame {frame_num} ({int(frame_num / self.fps // 60)}:{int(frame_num / self.fps % 60):02d})")
