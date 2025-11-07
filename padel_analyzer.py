@@ -109,7 +109,6 @@ class PadelAnalyzer:
     def process(self, model='models/yolov11x.pt', ball_model='models/ball-11x-1607.pt', show=False, debug=False, mini_court=True):
         """
         Process all the frames of the video, detecting players and saving their positions in a CSV file.
-        3 CSV files are created, one for each period of the game.
         
         Parameters
         ----------
@@ -132,9 +131,9 @@ class PadelAnalyzer:
                 The path to the output video file.
             - fps : int
                 The frames per second of the output video.
-            - output_csv_paths : list
-                A list of paths to the output CSV files containing player data.
-        
+            - output_csv_path : str
+                The path to the output CSV file containing player data.
+
         Raises
         ------
         FileNotFoundError
@@ -168,19 +167,9 @@ class PadelAnalyzer:
             if not success:
                 print("End of video" if longer_90 else "End of video (before 90 minutes)")
                 break
-            
-            if frame_num == self.fps*60*30: # after 30 minutes..
-                if (period < 2):            #..but only if it's not already the last period
-                    print("End 30 minutes")
-                    player_tracker = PlayerTracker(model_path=model)    # Restart the tracking
-                    #Save data remained in buffer and clear data
-                    self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
-                    all_frame_data = [None] * self.save_interval
-                    frame_num = 0
-                    period += 1
-                else:
-                    longer_90 = True
-                    print("Warning: last period longer than 30 minutes")
+
+            # TODO: Remove this comment.
+            # End of period was here, but now periods are detected during post-process (csv_analyzer.py)
             
             # Detect players and ball
             detected_dict = player_tracker.detect(frame)

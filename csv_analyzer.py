@@ -390,6 +390,49 @@ class CsvAnalyzer:
 
         return players_data
     
+    def detect_end_of_period(self):
+        """Detects the end of periods in the match based on player positions.
+
+        A period end can occur between 20 and 45 minutes.
+        It is determined if all players are outside the field for a frame,
+        or if they exit the field one after the other within 2 minutes.
+
+        Returns
+        -------
+        period_ends: list
+            A list of frame numbers indicating the end of each period.
+        """
+
+        # TODO: Refine period end detection logic to include also the cases where
+        #       players don't exit the field simultaneously, but one after the other
+
+        period_ends = []
+        last_end_frame = 0
+
+        for frame_num, frame_data in enumerate(self.all_data):
+            # End of period can occour only between 20 and 45 minutes.
+            if frame_num - last_end_frame < self.fps*60*(30-10) or frame_num - last_end_frame > self.fps*60*(30+15):
+                continue
+
+            all_outside = True
+            for detection in frame_data['detections']:
+                if is_inside_field(detection['position']):
+                    all_outside = False
+                    break
+
+            if all_outside:
+                period_ends.append(frame_num)
+                last_end_frame = frame_num
+
+        if len(period_ends) == 0:
+            print("WARNING: No period end detected.")
+        elif len(period_ends) == 1:
+            print("WARNING: Only one period end detected.")
+        elif len(period_ends) > 2:
+            print("WARNING: More than 2 period ends (i.e. 3 periods) detected.")
+
+        return period_ends
+
     def get_selected_ids(self):
         """Returns a list of 4 sets, each containing the IDs of a player."""
         return self.selected_ids_list

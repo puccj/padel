@@ -31,27 +31,26 @@ def main(input_video_path,
     # analyzer = PadelAnalyzer(input_video_path, cam_name, output_video_path, csv_path)
     analyzer = PadelAnalyzer(input_video_path, cam_name, cam_type, second_camera=second_camera, recalculate=recalculate, save_interval=200)
 
-    out_video, fps, out_csvs = analyzer.process(model, ball_model, show_video, debug, mini_court)
+    out_video, fps, out_csv = analyzer.process(model, ball_model, show_video, debug, mini_court)
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
 
     print(f"Output video saved to: {out_video}")
     print(f"Starting CSV analysis...")
 
-    for i, csv in enumerate(out_csvs):
-        csv_analyzer = CsvAnalyzer(csv, fps)
-        
-        together_frame = csv_analyzer.get_together_frame()
-        extract_frame(input_video_path, together_frame, output_image_path=f'together_frame_period_{i+1}.png')
+    csv_analyzer = CsvAnalyzer(out_csv, fps)
 
-        csv_analyzer.create_heatmaps(alpha=0.05, draw_net=False)
-        csv_analyzer.create_videos(field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05)
-        # csv_analyzer.create_heatmaps_and_video(field_height=800, draw_net=False, trace=0, alpha=0.05, speed_factor=2, trace=0, alpha=0.05)
+    together_frame = csv_analyzer.get_together_frame()
+    extract_frame(input_video_path, together_frame, output_image_path=f'together_frame_period.png')
 
-        csv_analyzer.create_graphs()
+    csv_analyzer.create_heatmaps(alpha=0.05, draw_net=False)
+    csv_analyzer.create_videos(field_height=800, draw_net=False, speed_factor=2, trace=0, alpha=0.05)
+    # csv_analyzer.create_heatmaps_and_video(field_height=800, draw_net=False, trace=0, alpha=0.05, speed_factor=2, trace=0, alpha=0.05)
 
-        print(f"Analysis complete ({i+1}/{len(out_csvs)})")
-        print("Players' ID")
-        print(csv_analyzer.get_selected_ids())
+    csv_analyzer.create_graphs()
+
+    print(f"Analysis completed. Results saved in the same directory as {out_csv}")
+    print("Players' ID")
+    print(csv_analyzer.get_selected_ids())
 
 
 if __name__ == "__main__":
