@@ -389,13 +389,13 @@ class CsvAnalyzer:
         # end for frame_data
 
         return players_data
-    
+
     def detect_end_of_period(self):
         """Detects the end of periods in the match based on player positions.
 
         A period end can occur between 20 and 45 minutes.
         It is determined if all players are outside the field for a frame,
-        or if they exit the field one after the other within 2 minutes.
+        or if they exit the field one after the other within 60 seconds.
 
         Returns
         -------
@@ -404,25 +404,51 @@ class CsvAnalyzer:
         """
 
         # TODO: Refine period end detection logic to include also the cases where
-        #       players don't exit the field simultaneously, but one after the other
+        #       players don't exit the field, but jump over the net
+        # TODO: I can consider that a player exits the field if now is out, before was in (near the exit_zone) and the next N frames is out too
+
+        Y_EXIT_ZONE = (9, 11) # y coordinate of the exit zone near the net: a player exiting should be near this area before exiting
 
         period_ends = []
         last_end_frame = 0
+
+        # Dictionary containing all IDs that exited the field and the frame they exited
+        exit_events = {}
 
         for frame_num, frame_data in enumerate(self.all_data):
             # End of period can occour only between 20 and 45 minutes.
             if frame_num - last_end_frame < self.fps*60*(30-10) or frame_num - last_end_frame > self.fps*60*(30+15):
                 continue
 
-            all_outside = True
             for detection in frame_data['detections']:
-                if is_inside_field(detection['position']):
-                    all_outside = False
-                    break
+                if detection['id'] in exit_events:  # Skip IDs that are already counted
+                    continue
 
-            if all_outside:
+                # Check if that a player exited the field (i.e now it is outside while before was inside)
+                if not is_inside_field(detection['position']): # now is outside
+                    id = detection['id']
+                    prev_frame_num = max(0, frame_num - int(self.fps*0.5))   # check 0.5 seconds before
+                    for prev_detection in self.all_data[prev_frame_num]['detections']:
+                        # Require that the same player was inside the field 0.5s before
+                        # and that the previous y position was near the middle of the field (9 < y < 11)
+                        if (prev_detection['id'] == id 
+                            and is_inside_field(prev_detection['position']) 
+                            and Y_EXIT_ZONE[0] < prev_detection['position'][1] < Y_EXIT_ZONE[1]
+                        ):
+                            # print(f"Debug: Player {id} exited the field at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d})"
+                            #       f" - prev_y={prev_detection['position'][1]:.2f}")
+                            exit_events[id] = frame_num
+                            break
+
+            # Remove exit events older than 60 seconds (keep as dictionary)
+            exit_events = {id: frame for id, frame in exit_events.items() if frame_num - frame < self.fps*60}
+
+            if len(exit_events) >= 4:
+                # print(f"Debug: Detected period end at frame {frame_num} ({int(frame_num / self.fps // 60)}:{int(frame_num / self.fps % 60):02d})")
+                # print(f"Debug: Player exits contributing to period end: {list(exit_events.keys())}")
                 period_ends.append(frame_num)
                 last_end_frame = frame_num
+                exit_events = {}  # Reset exit events after a period end
 
         if len(period_ends) == 0:
             print("WARNING: No period end detected.")
