@@ -63,10 +63,13 @@ class PadelAnalyzer:
             self.cam_name = cam_name or str(input_path)
 
         self.output_video_path = output_video_path or f"to_be_uploaded/{self.video_name}-analyzed.mp4"
-        csv_name = output_csv_path or f"output_data/{self.video_name}"
-        self.output_csv_paths = [csv_name + '-period1.csv', csv_name + '-period2.csv', csv_name + '-period3.csv']
+        self.output_csv_path = output_csv_path or f"output_data/{self.video_name}.csv"
         os.makedirs(os.path.dirname(self.output_video_path), exist_ok=True)
-        os.makedirs(os.path.dirname(self.output_csv_paths[0]), exist_ok=True)
+        os.makedirs(os.path.dirname(self.output_csv_path), exist_ok=True)
+
+        # Create the file (erasing it if it already exists)
+        with open(self.output_csv_path, 'w', newline='') as csvfile:
+            pass
 
         self.mousePosition = None  # mouse position for debug mode
 
@@ -101,10 +104,6 @@ class PadelAnalyzer:
         self.save_interval = save_interval
         # if (self.mean_interval >= self.save_interval):  #improbable but better to check
         #     self.save_interval = self.mean_interval + 1
-
-        for csv_path in self.output_csv_paths:
-            with open(csv_path, 'w', newline='') as csvfile:
-                pass    # Create the file (erasing it if it already exists)
 
     def process(self, model='models/yolov11x.pt', ball_model='models/ball-11x-1607.pt', show=False, debug=False, mini_court=True):
         """
@@ -165,7 +164,7 @@ class PadelAnalyzer:
         while True:
             success, frame = self.cap.read()
             if not success:
-                print("End of video" if longer_90 else "End of video (before 90 minutes)")
+                print("End of video" if frame_num > 90*60*self.fps else "End of video (before 90 minutes)")
                 break
 
             # TODO: Remove this comment.
@@ -189,7 +188,7 @@ class PadelAnalyzer:
             # Instead of deleting, I'll just save starting all over
             all_frame_data[frame_num % self.save_interval] = frame_data
             if (frame_num+1) % self.save_interval == 0 and frame_num != 0:
-                self._save_data_to_csv(all_frame_data, self.output_csv_paths[period])
+                self._save_data_to_csv(all_frame_data, self.output_csv_path)
 
             # Draw things and output video
             if debug:
@@ -225,9 +224,9 @@ class PadelAnalyzer:
         out.release()
 
         # Save data remained in buffer
-        self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_paths[period])
+        self._save_data_to_csv(all_frame_data[:(frame_num%self.save_interval)], self.output_csv_path)
 
-        return self.output_video_path, self.fps, self.output_csv_paths
+        return self.output_video_path, self.fps, self.output_csv_path
 
 
     # --Helper "private" functions--

@@ -35,6 +35,7 @@ def main(input_video_path,
     # analyzer.process_all(model=PadelAnalyzer.Model.FAST)
 
     print(f"Output video saved to: {out_video}")
+    print(f"Output CSV saved to: {out_csv}")
     print(f"Starting CSV analysis...")
 
     csv_analyzer = CsvAnalyzer(out_csv, fps)
