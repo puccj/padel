@@ -54,6 +54,7 @@ class CsvAnalyzer:
         self.video_name = os.path.splitext(os.path.basename(input_csv_path))[0]
         self.fps = fps or self._read_fps()
         self.mean_interval = int(mean_interval or 1*self.fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
+        self.together_frame = None
         
         self.all_data = self._read_csv(input_csv_path)
         self.selected_ids_list = self._calculate_ids()

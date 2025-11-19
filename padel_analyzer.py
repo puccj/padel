@@ -9,10 +9,10 @@ from enum import Enum
 import cv2
 import numpy as np
 import csv
+from ultralytics import YOLO
 
-from player_tracker import PlayerTracker
-from ball_tracker import BallTracker
-from padel_utils import get_feet_positions, load_fisheye_params, transform_points, draw_bboxes, draw_balls, draw_mini_court
+from padel_utils import (get_feet_positions, load_fisheye_params, transform_points, 
+                         choose_best_players, draw_bboxes, draw_balls, draw_mini_court)
 
 # TODO: make auto-detection of points for perspective matrix. Add more point for fisheye correction
 
@@ -105,16 +105,14 @@ class PadelAnalyzer:
         # if (self.mean_interval >= self.save_interval):  #improbable but better to check
         #     self.save_interval = self.mean_interval + 1
 
-    def process(self, model='models/yolov11x.pt', ball_model='models/ball-11x-1607.pt', show=False, debug=False, mini_court=True):
+    def process(self, model_path='models/best_p2.pt', show=False, debug=False, mini_court=True):
         """
         Process all the frames of the video, detecting players and saving their positions in a CSV file.
         
         Parameters
         ----------
-        model : Model, optional
-            The YOLO model to use for player detection. Default is 'models/yolov11x.pt'.
-        ball_model : str, optional
-            Path to the YOLO model for ball detection. Default is 'models/ball-11x-1607.pt'.
+        model_path : str, optional
+            The path to the YOLO model to use for detections. Default is 'models/best_p2.pt'.
         show : bool, optional
             If True, the video will be displayed while processing. Default is False.
         debug : bool, optional
@@ -151,16 +149,12 @@ class PadelAnalyzer:
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(self.output_video_path, fourcc, self.fps, (first_frame.shape[1], first_frame.shape[0]))
 
-        player_tracker = PlayerTracker(model)
-        ball_tracker = BallTracker(ball_model)
+        model = YOLO(model_path)
         all_frame_data = [None] * self.save_interval
-        
 
         # ----- Main loop: one iteration per frame -----
 
         frame_num = 0
-        period = 0  # 'tempo' in Italian
-        longer_90 = False
         while True:
             success, frame = self.cap.read()
             if not success:
@@ -171,13 +165,25 @@ class PadelAnalyzer:
             # End of period was here, but now periods are detected during post-process (csv_analyzer.py)
             
             # Detect players and ball
-            detected_dict = player_tracker.detect(frame)
-            balls = ball_tracker.detect(frame)
+            results = model.track(frame, persist=True)[0]
+            player_dict = {}
+            balls = []
+            for i, box in enumerate(results.boxes):
+                if box.cls.tolist()[0] == 1:  # NOTE: on merged models class 0 is ball and 1 is person
+                    track_id = box.id
+                    if track_id is None:
+                        track_id = i
+                    else:
+                        track_id = int(track_id.tolist()[0])
+                    bbox = box.xyxy.tolist()[0]  # [x_min, y_min, x_max, y_max]
+                    player_dict[track_id] = bbox
+                elif box.cls.tolist()[0] == 0:  # ball
+                    balls.append((box.xyxy.tolist()[0], box.conf.item()))
+            
             balls_bbox = np.array([b[0] for b in balls])         # Extract bounding boxes from detections
-
+            ball_positions = self._calculate_ball_positions(balls_bbox)   # Calculate ball positions
             # player_dict is a dictionary of {ID, namedtuple} the namedtuple is (bbox, positon)     player_dict = {ID, (bbox, position)}
-            player_dict = self._calculate_positions(detected_dict)
-            ball_positions = self._calculate_ball_positions(balls_bbox)
+            player_dict = self._calculate_positions(player_dict)
 
             # Record and save data every save_interval frames
             frame_data = {
@@ -203,7 +209,7 @@ class PadelAnalyzer:
                 if mini_court:
                     frame = draw_mini_court(frame, player_dict, mouse)
             else:
-                best_player_dict = player_tracker.choose_best_players(player_dict)
+                best_player_dict = choose_best_players(player_dict)
                 frame = draw_bboxes(frame, best_player_dict, show_id=False)
                 if mini_court:
                     frame = draw_mini_court(frame, best_player_dict)
