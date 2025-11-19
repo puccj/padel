@@ -17,6 +17,26 @@ def is_inside_field(position):
     return 0 <= position[0] <= 10 and 0 <= position[1] <= 20
 
 class CsvAnalyzer:
+    """Class to analyze a CSV file containing player tracking data.
+    
+    Attributes
+    ----------
+    video_name : str
+        The name of the video (derived from the CSV file name).
+    fps : int
+        The fps of the video. It can be provided or read from the parameters folder.
+    mean_interval : int
+        The number of frames to consider for the mean position and velocity.
+    all_data : list
+        A list of dictionaries, each containing the frame number and a list of detections. 
+        Each detection is represented as a dictionary with 'id', 'bbox' and 'position' keys.
+    selected_ids : list
+        A list of 4 sets, each containing the IDs of a player.
+    players_data: list
+        A list of 4 lists (one per Players), each containing a dictionary for each frame.
+        Each dictionary contains the 'position', 'distance' and 'speed' of the player in that frame.
+    """
+
     def __init__(self, input_csv_path, fps=None, mean_interval=None):
         """
         Initialize the CsvAnalyzer object.
@@ -26,39 +46,36 @@ class CsvAnalyzer:
         input_csv_path : str
             Path to the csv file to analyze.
         fps : int
-            Optional number of frames per second of the video. If not provided, it will be read from the <cam_name>-fps.txt file.
+            Optional number of frames per second of the video. If not provided, it will be read from the parameters folder.
         mean_interval : int
             Optional number of frames to consider for the mean position and velocity (default: 1*fps = 1 second).
         """
 
-        self.video_name = os.path.basename(input_csv_path)
-        self.video_name = os.path.splitext(self.video_name)[0]
-
-        if fps is None:
-            self._read_fps()
-        else:
-            self.fps = fps
-
+        self.video_name = os.path.splitext(os.path.basename(input_csv_path))[0]
+        self.fps = fps or self._read_fps()
         self.mean_interval = int(mean_interval or 1*self.fps)    # Number of frames to consider for the mean position and velocity (2*fps = 2 seconds)
-
+        self.together_frame = None
+        
         self.all_data = self._read_csv(input_csv_path)
         self.selected_ids_list = self._calculate_ids()
         self.players_data = self._calculate_players_data()
 
-    def _read_fps(self):
-        """Read the fps from the <cam_name>-fps.txt file."""
+    @staticmethod
+    def _read_fps():
+        """Read the fps from parameters folder."""
 
-        fps_files = [file for file in os.listdir(os.getcwd()) if file.endswith("-fps.txt")]
+        fps_files = [file for file in os.listdir('parameters') if file.endswith("-fps.txt")]
         if len(fps_files) > 1:
             print(f"Warning: More than one fps file found. Using the first one ({fps_files[0]})."
-                   " Delete the others if not needed or manually set fps in CSVAnalyzer.")
+                   " Delete the others if not needed or manually set fps in CSVAnalyzer's constructor.")
         if fps_files:
-            with open(os.path.join(os.getcwd(), fps_files[0]), 'r') as f:
-                self.fps = float(f.read().strip())
-        else:
-            raise FileNotFoundError("FPS file not found. Please provide the fps manually.")
+            with open(os.path.join('parameters', fps_files[0]), 'r') as f:
+                return float(f.read().strip())
+        
+        raise FileNotFoundError("FPS file not found. Please provide the fps manually.")
 
-    def _read_csv(self, input_csv_path):
+    @staticmethod
+    def _read_csv(input_csv_path):
         """Reads a CSV file and organizes its data into a structured format.
 
         Parameters
@@ -70,7 +87,7 @@ class CsvAnalyzer:
         -------
         organized_data: list
             A list of dictionaries, each containing the frame number and a list of detections. 
-            Each detection is represented as a dictionary with 'id' and 'position' keys.
+            Each detection is represented as a dictionary with 'id', 'bbox' and 'position' keys.
 
         Raises
         ------
@@ -82,8 +99,8 @@ class CsvAnalyzer:
         Notes
         -----
         - The CSV file is expected to have rows where the first column is the frame number (integer),
-            followed by pairs of detection ID (integer) and detection position (string in the format '[x y]').
-        - If a detection ID is not an integer, an error message will be printed indicating the frame number.
+            followed by triplets of detection ID (integer), bbox (string in the format '[xmin, ymin, xmax, ymax]')
+            and detection position (string in the format '[x y]').
         """
 
         if not os.path.exists(input_csv_path):
@@ -102,18 +119,24 @@ class CsvAnalyzer:
                 detections_data = row[1:]
                 
                 detections = []
-                for i in range(0, len(detections_data), 2):
-                    try:
-                        detection_id = int(detections_data[i])
-                    except ValueError:
-                        print(f"Error in frame {frame_num}: detection ID is not an integer. Is there a trailing comma?.")
-                    detection_position_str = detections_data[i + 1]
-                    detection_position_str = detection_position_str.strip('[] ')                      # Remove brackets and spaces
-                    detection_position = [float(coord) for coord in detection_position_str.split()]   # Convert to list of floats
-                    detections.append({'id': detection_id, 'position': detection_position})
-                
-                frame_data = {'frame_num': frame_num, 'detections': detections}
-                organized_data.append(frame_data)
+                for i in range(0, len(detections_data), 3):
+                    detection_id = int(detections_data[i])
+                    
+                    detection_bbox_str = detections_data[i + 1]
+                    detection_bbox_str = detection_bbox_str.strip('[] ')                        # Remove brackets and spaces
+                    detection_bbox = [float(coord) for coord in detection_bbox_str.split(',')]  # Convert to list of floats
+
+                    detection_position_str = detections_data[i + 2]
+                    detection_position_str = detection_position_str.strip('[] ')
+                    detection_position = [float(coord) for coord in detection_position_str.split()]
+
+                    detections.append({
+                        'id': detection_id,
+                        'bbox': detection_bbox, 
+                        'position': detection_position
+                    })
+
+                organized_data.append({'frame_num': frame_num, 'detections': detections})
         
         return organized_data
 
@@ -176,6 +199,9 @@ class CsvAnalyzer:
         while not all_together:
             id_to_take += 1
 
+            if id_to_take > len(sorted_ids):
+                raise ValueError("There is no frame where 4 IDs are inside the field at the same time.")
+
             # Generate only combinations that include the newest ID
             newest_id = sorted_ids[id_to_take - 1]
             combinations_to_check = list(combinations(sorted_ids[:id_to_take - 1], 3))
@@ -194,9 +220,10 @@ class CsvAnalyzer:
                         print(f"Debug: all id present together at frame {frame_data['frame_num']} ({minutes:02d}:{seconds:02d}), after checking the {id_to_take}th most common IDs")
 
                         count += 1
-                        if count > MIN_CO_OCCURRENCE * 2:
+                        if count > MIN_CO_OCCURRENCE * 2:   # to be extra sure
                             starting_ids = list(combination)
                             all_together = True
+                            self.together_frame = frame_data['frame_num']
                             break
                 if all_together:
                     break
@@ -217,7 +244,6 @@ class CsvAnalyzer:
         # Remove conflicts from available_ids_list.
         # There is a conflict if an ID is present in the same frame as the ID representing a player.
         # In that case, it is discarded for that player, since it can't represent the same player.
-        # TODO: Instead of removing the ID if present together in a single frame, remove it only if present together in N frames
 
         co_occurrence_counts = [defaultdict(int) for _ in range(len(starting_ids))]
 
@@ -244,7 +270,7 @@ class CsvAnalyzer:
                 if cand in assigned_ids:
                     continue
 
-                # Find with players still have this candidate
+                # Find which players still have this candidate
                 possible_players = [i for i in range(4) if cand in available_ids_list[i]]
 
                 if len(possible_players) == 1:  # Assign the ID to the player
@@ -261,7 +287,7 @@ class CsvAnalyzer:
                         if cand in frame_ids:
                             # available_ids_list[i].difference_update(frame_ids)
                             for id in frame_ids:
-                                if id != cand:
+                                if id != cand:  # no need to count self-co-occurrence
                                     co_occurrence_counts[id] += 1
 
                     to_remove = {id for id, count in co_occurrence_counts.items() if count > MIN_CO_OCCURRENCE}
@@ -271,12 +297,30 @@ class CsvAnalyzer:
 
             if not assigned:
                 print("Some IDs are not assigned, because available for more than one player and unable to decide")
-                print("Unassigned IDs: ", sorted(available_ids_list[0]))    # just the first one is enough, since they are all the same
-                # sort unassigned ID by frequency and print their frequency
-                unassigned_ids = sorted(available_ids_list[0], key=lambda x: id_counter[x], reverse=True)
-                print("Sorted: ", unassigned_ids)
+
+                id_dict = {} # id -> {"sets": [...], "freq": ...}
+
+                for i, available_ids in enumerate(available_ids_list):
+                    for id in available_ids:
+                        if id not in id_dict:
+                            id_dict[id] = {"sets": [], "freq": id_counter[id]}
+                        id_dict[id]["sets"].append(i)
+
+                # Print id sorted by id
+                print("\nUnassigned IDs and available players:")
+                for id in sorted(id_dict.keys()):
+                    info = id_dict[id]
+                    print(f"{id: 6d}: freq={info['freq']:04d}, av. to: {info['sets']}")
+
+                # Print id sorted by frequency
+                print("\nUnassigned IDs sorted by frequency:")
+                for id, info in sorted(id_dict.items(), key=lambda x: x[1]['freq'], reverse=True):
+                    print(f"{id: 6d}: freq={info['freq']:04d}, av. to: {info['sets']}")
 
                 return selected_ids_list
+            
+            # end for cand
+        # end while (round)
 
         return selected_ids_list
     
@@ -346,7 +390,94 @@ class CsvAnalyzer:
         # end for frame_data
 
         return players_data
-    
+
+    def detect_end_of_period(self):
+        """Detects the end of periods in the match based on player positions.
+
+        A period end can occur between 20 and 45 minutes.
+        It is determined if all players are outside the field for a frame,
+        or if they exit the field one after the other within 60 seconds.
+
+        Returns
+        -------
+        period_ends: list
+            A list of frame numbers indicating the end of each period.
+        """
+
+        # TODO: Refine period end detection logic to include also the cases where
+        #       players don't exit the field, but jump over the net
+        # TODO: I can consider that a player exits the field if now is out, before was in (near the exit_zone) and the next N frames is out too
+
+        X_EXIT_DISTANCE = 1.0 # max x distance from the field border to consider a player near the exit
+        Y_EXIT_ZONE = (9, 11) # y coordinate of the exit zone near the net: a player exiting should be near this area before exiting
+
+        period_ends = []
+        last_end_frame = 0
+
+        # Dictionary containing all IDs that exited the field and the frame they exited
+        exit_events = {}
+
+        for frame_num, frame_data in enumerate(self.all_data):
+            # End of period can occour only between 20 and 45 minutes.
+            if frame_num - last_end_frame < self.fps*60*(30-10) or frame_num - last_end_frame > self.fps*60*(30+15):
+                continue
+
+            prev_frame_num = max(0, frame_num - int(self.fps*0.5))   # check 0.5 seconds before
+            prev_data = self.all_data[prev_frame_num]
+            prev_positions = {d['id']: d['position'] for d in prev_data['detections']}
+
+            for detection in frame_data['detections']:
+                if detection['id'] in exit_events:  # Skip IDs that are already counted
+                    continue
+
+                # Check if that a player exited the field (i.e. now it is outside while before was inside near exit zone)
+                if not is_inside_field(detection['position']):
+                    id = detection['id']
+                    prev_position = prev_positions.get(id)
+                    if prev_position and is_inside_field(prev_position) and Y_EXIT_ZONE[0] < prev_position[1] < Y_EXIT_ZONE[1]:
+                        # print(f"Debug: Player {id} exited the field at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d}) - prev_y={prev_position[1]:.2f}")
+                        exit_events[id] = frame_num
+                        break
+                
+                if len(exit_events) >= 4:
+                    break
+            
+            # Remove exit events older than 60 seconds (keep as dictionary)
+            exit_events = {id: frame for id, frame in exit_events.items() if frame_num - frame < self.fps*60}
+
+            if len(exit_events) < 4:
+                # Check if a player may have exited the field (i.e. disappeared near exit zone)
+                current_ids = set(d['id'] for d in frame_data['detections'])
+                lost_ids = set(prev_positions.keys()) - current_ids
+
+                for id in lost_ids:
+                    if id in exit_events:
+                        continue
+                    
+                    prev_position = prev_positions.get(id)
+                    if (prev_position and is_inside_field(prev_position) 
+                        and Y_EXIT_ZONE[0] < prev_position[1] < Y_EXIT_ZONE[1]
+                        and (prev_position[0] < X_EXIT_DISTANCE or prev_position[0] > 10-X_EXIT_DISTANCE)
+                    ):
+                        # print(f"Debug: Player {id} lost at frame {frame_num} ({int(frame_num/self.fps//60)}:{int(frame_num/self.fps%60):02d}) - prev={prev_position}. Counting as exit.")
+                        exit_events[id] = frame_num
+
+            if len(exit_events) >= 4:
+                # print(f"Debug: Detected period end at frame {frame_num} ({int(frame_num / self.fps // 60)}:{int(frame_num / self.fps % 60):02d})")
+                # print(f"Debug: Player exits contributing to period end: {list(exit_events.keys())}")
+                period_ends.append(frame_num)
+                last_end_frame = frame_num
+                exit_events = {}  # Reset exit events after a period end
+
+        if len(period_ends) == 0:
+            print("WARNING: No period end detected.")
+        elif len(period_ends) == 1:
+            print("WARNING: Only one period end detected.")
+        elif len(period_ends) > 2:
+            print("WARNING: More than 2 period ends (i.e. 3 periods) detected.")
+
+        return period_ends
+
     def get_selected_ids(self):
         """Returns a list of 4 sets, each containing the IDs of a player."""
         return self.selected_ids_list
@@ -356,6 +487,10 @@ class CsvAnalyzer:
         Each dictionary contains the 'position', 'distance' and 'speed' of the player in that frame.
         """
         return self.players_data
+
+    def get_together_frame(self):
+        """Returns the frame number where the 4 players are seen together, in order to extract a frame from the video."""
+        return self.together_frame
 
     def create_heatmaps(self, output_path = 'Default', alpha=0.05, colors=['yellow', (0,1,0), (1,0,0), 'blue']):
         """Create heatmaps for each player, containing also distance and speed data.

@@ -107,6 +107,35 @@ def transform_points(points, K=None, D=None, H=None):
         
     return result.reshape(-1,2)    # reshape back to (n,2)
 
+def choose_best_players(player_dict):
+    """Selects the best 4 players, simply based on their distance to the center (5, 10).
+    
+    Parameters
+    ----------
+    player_dict : dict
+        A dictionary where keys are track IDs and values are player information objects.
+        Each player information object must have a 'position' attribute which is a tuple (x, y).
+    
+    Returns
+    -------
+    chosen_players: dict
+        A dictionary containing the track IDs and player information of the 4 players closest to the point (5, 10).
+    """
+
+    if len(player_dict) <= 4:
+        return player_dict
+    
+    distances = [(track_id, get_distance(player_info.position, (5,10))) for track_id, player_info in player_dict.items()]
+
+    # sort the distances in ascending order
+    distances.sort(key = lambda x: x[1])
+    # Choose the first 4 tracks
+    chosen_id = [distances[0][0], distances[1][0], distances[2][0], distances[3][0]]
+    # Create a new dictionary with only these 4 and return it
+    chosen_players = {track_id: player_info for track_id, player_info in player_dict.items() if track_id in chosen_id}
+
+    return chosen_players
+
 def draw_bboxes(frame, player_dict, show_id = False, only4 = False):
     """
     Draws the bounding boxes of the players on the frame.
@@ -163,6 +192,22 @@ def draw_bboxes(frame, player_dict, show_id = False, only4 = False):
     return frame
 
 def draw_balls(frame, balls_bbox):
+    """
+    Draws the bounding boxes of the balls on the frame.
+    
+    Parameters
+    ----------
+    frame : np.array
+        The frame to draw the bounding boxes on.
+    balls_bbox : np.array
+        Array containing the bounding boxes of the balls.
+        
+    Returns
+    -------
+    frame : np.array
+        The frame with the bounding boxes drawn on it.
+    """
+
     if balls_bbox.size == 0:
         return frame
 
